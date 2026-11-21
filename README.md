@@ -19,6 +19,16 @@ open `project.godot` in the editor and press **F5**.
 
 The ride from the house to the gym is about 250 m: roughly 18 s sprinting, about 40 s at cruising speed.
 
+## Windows build
+
+`export_presets.cfg` has a **Windows Desktop** preset that produces a single `IronTemple.exe` with the game
+data embedded. In the editor, install the export templates (Editor → Manage Export Templates), then use
+Project → Export → Windows Desktop → Export Project. From a shell:
+
+```
+godot --headless --path . --export-release "Windows Desktop" build/IronTemple.exe
+```
+
 ## Scene tree
 
 `scenes/main.tscn`
