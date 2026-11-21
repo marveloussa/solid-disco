@@ -1,0 +1,307 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/hud.gd" id="1_hud"]
+
+[sub_resource type="FontVariation" id="FontVariation_bold"]
+variation_embolden = 0.7
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+content_margin_left = 16.0
+content_margin_top = 12.0
+content_margin_right = 18.0
+content_margin_bottom = 14.0
+bg_color = Color(0.055, 0.063, 0.082, 0.86)
+border_width_left = 4
+border_color = Color(1, 0.55, 0.12, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_badge"]
+content_margin_left = 10.0
+content_margin_top = 2.0
+content_margin_right = 10.0
+content_margin_bottom = 2.0
+bg_color = Color(1, 0.55, 0.12, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bar_bg"]
+bg_color = Color(1, 1, 1, 0.13)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bar_fill"]
+bg_color = Color(1, 0.62, 0.15, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_prompt"]
+content_margin_left = 12.0
+content_margin_top = 8.0
+content_margin_right = 18.0
+content_margin_bottom = 8.0
+bg_color = Color(0.055, 0.063, 0.082, 0.86)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_keycap"]
+content_margin_left = 10.0
+content_margin_top = 1.0
+content_margin_right = 10.0
+content_margin_bottom = 1.0
+bg_color = Color(0.96, 0.97, 1, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_dot"]
+bg_color = Color(1, 1, 1, 0.9)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+shadow_color = Color(0, 0, 0, 0.45)
+shadow_size = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_diamond"]
+bg_color = Color(1, 0.62, 0.15, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+shadow_color = Color(0, 0, 0, 0.4)
+shadow_size = 3
+
+[node name="HUD" type="CanvasLayer"]
+script = ExtResource("1_hud")
+
+[node name="Root" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="ProfilePanel" type="PanelContainer" parent="Root"]
+layout_mode = 0
+offset_left = 28.0
+offset_top = 28.0
+offset_right = 428.0
+offset_bottom = 118.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="VBox" type="VBoxContainer" parent="Root/ProfilePanel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 10
+
+[node name="Header" type="HBoxContainer" parent="Root/ProfilePanel/VBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="LevelBadge" type="PanelContainer" parent="Root/ProfilePanel/VBox/Header"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_badge")
+
+[node name="LevelLabel" type="Label" parent="Root/ProfilePanel/VBox/Header/LevelBadge"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.07, 0.07, 0.09, 1)
+theme_override_fonts/font = SubResource("FontVariation_bold")
+theme_override_font_sizes/font_size = 20
+text = "Lvl 1"
+
+[node name="RankLabel" type="Label" parent="Root/ProfilePanel/VBox/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.96, 0.97, 1, 1)
+theme_override_fonts/font = SubResource("FontVariation_bold")
+theme_override_font_sizes/font_size = 24
+text = "Skinny Rookie | 0 Days"
+
+[node name="StaminaRow" type="HBoxContainer" parent="Root/ProfilePanel/VBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="StaminaCaption" type="Label" parent="Root/ProfilePanel/VBox/StaminaRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.66, 0.69, 0.76, 1)
+theme_override_fonts/font = SubResource("FontVariation_bold")
+theme_override_font_sizes/font_size = 13
+text = "STAMINA"
+
+[node name="StaminaBar" type="ProgressBar" parent="Root/ProfilePanel/VBox/StaminaRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_bar_bg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_bar_fill")
+value = 100.0
+show_percentage = false
+
+[node name="ObjectiveLabel" type="Label" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 34.0
+offset_top = 130.0
+offset_right = 734.0
+offset_bottom = 160.0
+theme_override_colors/font_color = Color(1, 0.86, 0.6, 1)
+theme_override_colors/font_outline_color = Color(0.04, 0.04, 0.06, 0.9)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 19
+text = "Objective"
+
+[node name="Crosshair" type="Panel" parent="Root"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -3.0
+offset_top = -3.0
+offset_right = 3.0
+offset_bottom = 3.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_dot")
+
+[node name="PromptAnchor" type="CenterContainer" parent="Root"]
+layout_mode = 1
+anchors_preset = 14
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_top = 70.0
+offset_bottom = 126.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Prompt" type="PanelContainer" parent="Root/PromptAnchor"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_prompt")
+
+[node name="Row" type="HBoxContainer" parent="Root/PromptAnchor/Prompt"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="KeyCap" type="PanelContainer" parent="Root/PromptAnchor/Prompt/Row"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_keycap")
+
+[node name="PromptKey" type="Label" parent="Root/PromptAnchor/Prompt/Row/KeyCap"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.07, 0.07, 0.09, 1)
+theme_override_fonts/font = SubResource("FontVariation_bold")
+theme_override_font_sizes/font_size = 22
+text = "E"
+horizontal_alignment = 1
+
+[node name="PromptLabel" type="Label" parent="Root/PromptAnchor/Prompt/Row"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.96, 0.97, 1, 1)
+theme_override_font_sizes/font_size = 24
+text = "Interact"
+
+[node name="ToastLabel" type="Label" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -190.0
+offset_bottom = -150.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0.04, 0.04, 0.06, 0.92)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 26
+text = "Toast"
+horizontal_alignment = 1
+
+[node name="ControlsHint" type="Label" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -64.0
+offset_bottom = -32.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.9, 0.92, 0.97, 0.9)
+theme_override_colors/font_outline_color = Color(0.04, 0.04, 0.06, 0.85)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 18
+text = "WASD  Move     Shift  Sprint     Space  Jump     E  Interact     Esc  Release mouse"
+horizontal_alignment = 1
+
+[node name="Waypoint" type="Control" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 0
+mouse_filter = 2
+
+[node name="Diamond" type="Panel" parent="Root/Waypoint"]
+layout_mode = 0
+offset_left = -9.0
+offset_top = -9.0
+offset_right = 9.0
+offset_bottom = 9.0
+rotation = 0.7853982
+pivot_offset = Vector2(9, 9)
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_diamond")
+
+[node name="WaypointLabel" type="Label" parent="Root/Waypoint"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = -110.0
+offset_top = 16.0
+offset_right = 110.0
+offset_bottom = 42.0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0.04, 0.04, 0.06, 0.9)
+theme_override_constants/outline_size = 6
+theme_override_fonts/font = SubResource("FontVariation_bold")
+theme_override_font_sizes/font_size = 17
+text = "GYM  250 m"
+horizontal_alignment = 1

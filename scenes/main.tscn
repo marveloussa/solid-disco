@@ -1,0 +1,100 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/world/neighborhood.gd" id="2_neighborhood"]
+[ext_resource type="Script" path="res://scripts/world/gym.gd" id="3_gym"]
+[ext_resource type="Script" path="res://scripts/world/gym_floor_weights.gd" id="4_weights"]
+[ext_resource type="Script" path="res://scripts/world/gym_floor_mma.gd" id="5_mma"]
+[ext_resource type="Script" path="res://scripts/world/gym_floor_lounge.gd" id="6_lounge"]
+[ext_resource type="Script" path="res://scripts/world/beacon.gd" id="7_beacon"]
+[ext_resource type="PackedScene" path="res://scenes/world/mirror.tscn" id="8_mirror"]
+[ext_resource type="PackedScene" path="res://scenes/vehicles/bicycle.tscn" id="9_bicycle"]
+[ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="10_player"]
+[ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="11_hud"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
+sky_top_color = Color(0.16, 0.4, 0.86, 1)
+sky_horizon_color = Color(0.7, 0.84, 0.97, 1)
+sky_curve = 0.12
+ground_bottom_color = Color(0.3, 0.45, 0.35, 1)
+ground_horizon_color = Color(0.7, 0.84, 0.97, 1)
+sun_angle_max = 25.0
+sun_curve = 0.12
+
+[sub_resource type="Sky" id="Sky_day"]
+sky_material = SubResource("ProceduralSkyMaterial_sky")
+
+[sub_resource type="Environment" id="Environment_world"]
+background_mode = 2
+sky = SubResource("Sky_day")
+ambient_light_source = 2
+ambient_light_color = Color(0.84, 0.88, 1, 1)
+ambient_light_energy = 0.7
+tonemap_mode = 2
+tonemap_white = 1.3
+ssao_enabled = true
+ssao_radius = 0.8
+ssao_intensity = 1.5
+glow_enabled = true
+glow_intensity = 0.7
+glow_bloom = 0.03
+glow_blend_mode = 1
+glow_hdr_threshold = 1.05
+fog_enabled = true
+fog_light_color = Color(0.68, 0.8, 0.94, 1)
+fog_density = 0.0011
+fog_aerial_perspective = 0.5
+fog_sky_affect = 0.0
+adjustment_enabled = true
+adjustment_contrast = 1.05
+adjustment_saturation = 1.15
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_world")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.8192, 0.3838, -0.4262, 0, 0.7431, 0.6691, 0.5736, -0.5481, 0.6088, 0, 40, 0)
+light_color = Color(1, 0.95, 0.85, 1)
+light_energy = 1.35
+light_angular_distance = 0.8
+shadow_enabled = true
+shadow_blur = 1.3
+directional_shadow_blend_splits = true
+directional_shadow_max_distance = 130.0
+
+[node name="Neighborhood" type="Node3D" parent="."]
+script = ExtResource("2_neighborhood")
+
+[node name="Gym" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -255)
+script = ExtResource("3_gym")
+
+[node name="Floor1_WeightRoom" type="Node3D" parent="Gym"]
+script = ExtResource("4_weights")
+
+[node name="MirrorWall" parent="Gym/Floor1_WeightRoom" instance=ExtResource("8_mirror")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -14.54, 2.1, -13)
+size = Vector2(12, 3.2)
+
+[node name="Floor2_FightHall" type="Node3D" parent="Gym"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 0)
+script = ExtResource("5_mma")
+
+[node name="Floor3_Lounge" type="Node3D" parent="Gym"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 10, 0)
+script = ExtResource("6_lounge")
+
+[node name="GymBeacon" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -249)
+script = ExtResource("7_beacon")
+
+[node name="Bicycle" parent="." instance=ExtResource("9_bicycle")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.6, 0, 1.5)
+
+[node name="Player" parent="." instance=ExtResource("10_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 0, 7)
+
+[node name="HUD" parent="." instance=ExtResource("11_hud")]
