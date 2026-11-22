@@ -141,7 +141,7 @@ static func _hit(rate: float, rng: RandomNumberGenerator, heavy: bool) -> Packed
 		Synth.tone(out, rate, 0.0, 0.3, 84.0, 36.0, 0.6, 8.0)
 		Synth.noise(out, rate, rng, 0.0, 0.07, 0.9, 55.0, 1500.0)
 		Synth.noise(out, rate, rng, 0.0, 0.012, 0.6, 200.0, 5000.0, 1200.0)
-		return Synth.finish(out, 0.9, 2.2)
+		return Synth.finish(out, 0.8, 2.2)
 	Synth.tone(out, rate, 0.0, 0.16, 200.0, 72.0, 1.0, 26.0)
 	Synth.noise(out, rate, rng, 0.0, 0.04, 0.7, 85.0, 2600.0)
 	return Synth.finish(out, 0.7, 1.4)
@@ -218,7 +218,7 @@ static func _counter_crunch(rate: float, rng: RandomNumberGenerator) -> PackedVe
 		Synth.noise(out, rate, rng, rng.randf_range(0.005, 0.11), 0.025, rng.randf_range(0.5, 0.9), 130.0, 2200.0, 500.0)
 	Synth.tone(out, rate, 0.0, 0.4, 130.0, 34.0, 1.0, 9.0)
 	Synth.tone(out, rate, 0.0, 0.1, 900.0, 240.0, 0.35, 45.0, TRI)
-	return Synth.finish(out, 0.95, 2.4)
+	return Synth.finish(out, 0.8, 2.4)
 
 
 ## A fist sinking into the body: a low, dull thud and the air going out.
@@ -246,7 +246,7 @@ static func _rocked(rate: float) -> PackedVector2Array:
 	Synth.tone(out, rate, 0.0, 1.38, 3150.0, 3060.0, 0.35, 2.6, S, 0.02)
 	Synth.tone(out, rate, 0.0, 1.3, 3163.0, 3071.0, 0.3, 2.8, S, 0.02)
 	Synth.tone(out, rate, 0.0, 0.7, 72.0, 48.0, 0.5, 5.0, S, 0.01)
-	return Synth.finish(out, 0.4)
+	return Synth.finish(out, 0.27)
 
 
 ## A feint: the flick of a glove that goes nowhere.
@@ -258,8 +258,8 @@ static func _feint(rate: float, rng: RandomNumberGenerator) -> PackedVector2Arra
 
 ## Tell of an overhand or power hook: the shoulder turning away, a soft rising rush of air.
 static func _swoosh(rate: float, rng: RandomNumberGenerator) -> PackedVector2Array:
-	var out := Synth.buffer(rate, 0.36)
-	Synth.sweep(out, rate, rng, 0.0, 0.34, 1.0, 240.0, 1500.0)
+	var out := Synth.buffer(rate, 0.28)
+	Synth.sweep(out, rate, rng, 0.0, 0.26, 1.0, 240.0, 1500.0)
 	return Synth.finish(out, 0.3)
 
 
@@ -293,4 +293,4 @@ static func _exhale(rate: float, rng: RandomNumberGenerator) -> PackedVector2Arr
 	var out := Synth.buffer(rate, 0.26)
 	Synth.noise(out, rate, rng, 0.0, 0.24, 1.0, 16.0, 5200.0, 1400.0, 0.012)
 	Synth.noise(out, rate, rng, 0.0, 0.1, 0.5, 30.0, 9000.0, 3500.0, 0.004)
-	return Synth.finish(out, 0.5)
+	return Synth.finish(out, 0.32)
