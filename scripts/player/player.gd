@@ -10,6 +10,8 @@ extends CharacterBody3D
 signal interact_prompt_changed(text: String)
 signal vehicle_changed(vehicle: Bicycle)
 signal station_changed(station: WorkoutStation)
+## Esc on foot or on the bike: the HUD opens the pause menu.
+signal pause_requested
 
 const RIDE_PITCH := -0.14
 const VIEW_BLEND_TIME := 0.35
@@ -24,6 +26,10 @@ const PUNCH_IMPULSE := 40.0
 ## How far the eyes sink and roll when knocked out.
 const KNOCKDOWN_DROP := 1.3
 const KNOCKDOWN_ROLL := 0.55
+## The arms steam from this share of a full pump, and on pre-workout.
+const AURA_PUMP := 0.92
+const PUMP_AURA := Color(1.7, 0.6, 1.5)
+const PREWORKOUT_AURA := Color(1.0, 0.75, 2.2)
 
 @export_group("Movement")
 @export var walk_speed := 4.2
@@ -101,7 +107,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		else:
 			station.handle_input(event)
 	elif event.is_action_pressed(&"ui_cancel"):
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		if combat.in_bout:
+			# No pausing mid-fight: Esc only frees the mouse, a click takes it back.
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		else:
+			get_viewport().set_input_as_handled()
+			pause_requested.emit()
 	elif event.is_action_pressed(&"interact"):
 		_interact()
 	elif combat.stance:
@@ -170,6 +181,8 @@ func _process(delta: float) -> void:
 	_punch += _punch_velocity * delta
 	camera.rotation = Vector3(_punch.x + randf_range(-jolt, jolt), _punch.y + randf_range(-jolt, jolt), _camera_roll + randf_range(-jolt, jolt))
 	camera.fov = lerpf(camera.fov, base_fov + speed_fov_boost * fast, 1.0 - exp(-6.0 * delta))
+	var preworkout := PlayerStats.has_preworkout()
+	arms.set_aura(preworkout or PlayerStats.pump_level >= PlayerStats.PUMP_MAX * AURA_PUMP, PREWORKOUT_AURA if preworkout else PUMP_AURA)
 	arms.animate(delta, _stride, _move_amount, _sprint_amount, on_foot and not is_on_floor(), torso)
 
 
@@ -189,9 +202,13 @@ func apply_impulse(push: Vector3) -> void:
 	velocity.z += push.z
 
 
-## Stands the fighter at `spot`, facing its -Z (ring corners, leaving the cage).
-func place_at(spot: Transform3D) -> void:
-	_begin_view_blend()
+## Stands the fighter at `spot`, facing its -Z (ring corners, leaving the cage). `instant` cuts
+## the view there instead of easing it.
+func place_at(spot: Transform3D, instant: bool = false) -> void:
+	if instant:
+		_view_blend = 1.0
+	else:
+		_begin_view_blend()
 	_yaw = spot.basis.get_euler().y
 	_pitch = 0.0
 	_stand_at(Transform3D(Basis(Vector3.UP, _yaw), spot.origin))
@@ -246,6 +263,7 @@ func exit_station(exit: Transform3D) -> void:
 
 
 func _look(relative: Vector2) -> void:
+	relative *= SaveManager.get_mouse_sensitivity()
 	if station != null:
 		_station_look.x = clampf(_station_look.x - relative.x * mouse_sensitivity, -STATION_LOOK_LIMIT.x, STATION_LOOK_LIMIT.x)
 		_station_look.y = clampf(_station_look.y - relative.y * mouse_sensitivity, -STATION_LOOK_LIMIT.y, STATION_LOOK_LIMIT.y)

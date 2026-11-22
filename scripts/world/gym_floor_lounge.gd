@@ -1,5 +1,6 @@
 extends Node3D
 ## Storey 3: supplement bar and lounge with neon accent lighting.
+## The SupplementBar node at the counter adds the bartender and the shop prompt.
 ## Uses gym-local x/z; y = 0 is this storey's floor.
 
 const CEILING := 5.0
@@ -85,6 +86,12 @@ func _build_bar() -> void:
 		Build.ball(self, 0.065, Vector3(BAR_WEST + 0.92 + (i % 2) * 0.15, 1.23 + (i / 2) * 0.02, BAR_Z - 0.07 + (i / 2) * 0.14), Build.mat(fruit[i], 0.5), Vector3.ONE, 8)
 
 	Build.text(self, "PROTEIN BAR", Vector3(mid_x, 4.05, -25.5), 0.85, MAGENTA, Vector3.ZERO, 2.4)
+
+	var bar := SupplementBar.new()
+	bar.name = "SupplementBar"
+	bar.position = Vector3(mid_x, 0.0, BAR_Z)
+	bar.counter_length = length
+	add_child(bar)
 	Build.text(self, "SHAKES  •  SUPPS  •  RECOVERY", Vector3(mid_x, 3.42, -25.5), 0.26, CYAN, Vector3.ZERO, 2.0)
 
 

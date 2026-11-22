@@ -163,7 +163,9 @@ func _advance_count() -> void:
 	_count += 1
 	_timer = COUNT_STEP
 	if _count < COUNTS.size():
+		AudioManager.play(&"count")
 		return
+	AudioManager.play(&"bell")
 	# "FIGHT!" is on screen: hand over control.
 	state = State.FIGHT
 	player.controls_enabled = true
@@ -179,6 +181,12 @@ func _on_opponent_defeated() -> void:
 	_timer = WIN_PAUSE
 	player.combat.set_locked(true)
 	player.combat.time_fx.slow_motion(0.7, 0.25)
+	_ring_bell()
+	# Confetti over the cage; a title fight fills the air.
+	var title_fight := profile.is_league() or profile.ladder_index == FighterRoster.LADDER_SIZE - 1
+	var above := global_transform * Vector3(0.0, platform_height + 3.3, 0.0)
+	CombatFx.burst(get_tree().current_scene, CombatFx.CONFETTI, above, Vector3.UP, 2.0 if title_fight else 1.0)
+	CombatFx.flash(get_tree().current_scene, above, Color(1.0, 0.95, 0.85), 6.0, 12.0, 0.5)
 
 
 func _on_player_down() -> void:
@@ -189,6 +197,7 @@ func _on_player_down() -> void:
 	_timer = LOSS_PAUSE
 	player.controls_enabled = false
 	opponent.celebrate()
+	_ring_bell()
 
 
 func _show_result() -> void:
@@ -197,6 +206,9 @@ func _show_result() -> void:
 	player.combat.set_locked(true)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	var summary := _pay_out(_won)
+	SaveManager.save_game()
+	if _won:
+		AudioManager.play(&"level_up", 0.8)
 	_hud.show_result(summary)
 	bout_finished.emit(profile, _won)
 
@@ -270,6 +282,12 @@ func _advance_ladder() -> String:
 		return "GYM BOSS DEFEATED  |  ENDLESS CHAMPIONSHIP LEAGUE UNLOCKED"
 	var next := FighterRoster.ladder()[PlayerStats.ladder_progress]
 	return "Unlocked: %s  (Lvl %d)" % [next.fighter_name, next.level]
+
+
+## Three strokes of the bell: the bout is over.
+func _ring_bell() -> void:
+	for i in 3:
+		AudioManager.play(&"bell", 0.9, 1.0, i * 0.28)
 
 
 func _clear_opponent() -> void:

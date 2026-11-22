@@ -1,7 +1,9 @@
 extends Node
 ## Autoload `PlayerStats`: the single source of truth for the fighter's progression and condition.
 ## Workout stations pay out through `reward_rep()`; the HUD, the player rig and the fight system
-## read the properties and listen to the signals. Fights pay into `cash` and `fight_record`.
+## read the properties and listen to the signals. Fights pay into `cash` and `fight_record`;
+## the supplement bar spends the cash on timed buffs. `to_save()` and `apply_save()` are the
+## career's save format (see SaveManager).
 ##
 ## Tuned to run about ten times faster than real life: roughly half an hour of training takes a
 ## skinny rookie to a lean, shredded build.
@@ -23,6 +25,12 @@ signal injured(duration: float)
 signal popup_requested(text: String, kind: StringName)
 signal cash_changed(cash: int)
 signal fight_record_changed(record: FightRecord)
+## A supplement buff started or ran out.
+signal buffs_changed
+## A workout rep was paid out.
+signal rep_completed(perfect: bool)
+## The whole career was loaded or reset: re-read everything.
+signal profile_reloaded
 
 const MUSCLE_MAX := 100.0
 const PUMP_MAX := 100.0
@@ -92,6 +100,19 @@ const BAG_XP := 1.6
 const BAG_CONDITIONING := 0.03
 const BAG_MUSCLE := 0.03
 
+# Supplements.
+const PROTEIN_DURATION := 180.0
+## Muscle and XP multiplier on workout reps while the shake lasts.
+const PROTEIN_GAIN := 2.0
+const PREWORKOUT_DURATION := 120.0
+const PREWORKOUT_REGEN := 3.5
+const PREWORKOUT_LIFT_POWER := 1.2
+const PREWORKOUT_FIGHT_SPEED := 1.2
+
+# A fresh career.
+const START_STRENGTH := 20.0
+const START_MAX_STAMINA := 100.0
+
 var level := 1
 var xp := 0.0
 ## Roughly the bench press, in kilograms, the fighter handles safely.
@@ -124,6 +145,9 @@ var fight_record := FightRecord.new()
 var ladder_progress := 0
 ## Endless Championship League challengers beaten.
 var league_wins := 0
+## Seconds of the whey protein and pre-workout buffs left.
+var protein_timer := 0.0
+var preworkout_timer := 0.0
 
 var _regen_delay := 0.0
 var _pump_grace := 0.0
@@ -214,10 +238,12 @@ func add_xp(amount: float) -> void:
 ## and `stamina_growth` add Strength and MaxStamina. A perfect rep doubles pump and XP.
 func reward_rep(focus: Dictionary, intensity: float = 1.0, perfect: bool = false, strength_weight: float = 0.0, stamina_growth: float = 0.0) -> void:
 	var multiplier := get_gain_multiplier()
+	# Whey protein doubles muscle and XP on top of the pump.
+	var boost := multiplier * get_protein_multiplier()
 	var labels := PackedStringArray()
 	for group: StringName in focus:
 		var weight: float = focus[group]
-		if add_muscle(group, MUSCLE_PER_REP * weight * intensity * multiplier) > 0.0:
+		if add_muscle(group, MUSCLE_PER_REP * weight * intensity * boost) > 0.0:
 			labels.append("+" + String(MUSCLE_LABELS[group]))
 	if strength_weight > 0.0:
 		add_strength(STRENGTH_PER_REP * strength_weight * intensity * multiplier)
@@ -231,7 +257,8 @@ func reward_rep(focus: Dictionary, intensity: float = 1.0, perfect: bool = false
 	if perfect:
 		popup_requested.emit("PERFECT REP!", &"perfect")
 	add_pump(PUMP_PER_REP * bonus)
-	add_xp(XP_PER_REP * intensity * multiplier * bonus)
+	add_xp(XP_PER_REP * intensity * boost * bonus)
+	rep_completed.emit(perfect)
 
 
 func get_muscle(group: StringName) -> float:
@@ -359,11 +386,15 @@ func apply_strain(severity: float) -> void:
 	status_changed.emit()
 
 
-## Strength available right now: a strain and deep fatigue both take some away.
+## Strength available right now: a strain and deep fatigue both take some away, pre-workout
+## adds lifting power.
 func get_effective_strength() -> float:
-	var value := strength
-	if is_strained():
-		value *= STRAIN_STRENGTH_FACTOR
+	return strength * _condition() * (PREWORKOUT_LIFT_POWER if has_preworkout() else 1.0)
+
+
+## Share of the fighter's power left after strain and fatigue, 0 to 1.
+func _condition() -> float:
+	var value := STRAIN_STRENGTH_FACTOR if is_strained() else 1.0
 	var freshness := clampf(get_stamina_ratio() / FATIGUE_THRESHOLD, 0.0, 1.0)
 	return value * lerpf(FATIGUE_STRENGTH_FACTOR, 1.0, freshness)
 
@@ -434,7 +465,7 @@ func add_tenure(days: float) -> void:
 
 ## Share of the fighter's power available right now: a strain and deep fatigue both cut it.
 func get_fight_condition() -> float:
-	return get_effective_strength() / maxf(strength, 1.0)
+	return _condition()
 
 
 ## Damage multiplier for punches, from Strength and arm muscle. 1.0 for an untrained rookie.
@@ -463,6 +494,8 @@ func get_footwork() -> float:
 ## Strike speed multiplier: punches slow down as stamina runs out and while strained.
 func get_fight_speed() -> float:
 	var speed := STRAIN_FIGHT_SPEED if is_strained() else 1.0
+	if has_preworkout():
+		speed *= PREWORKOUT_FIGHT_SPEED
 	if is_exhausted:
 		return speed * GASSED_FIGHT_SPEED
 	return speed * lerpf(GASSED_FIGHT_SPEED, 1.0, clampf(get_stamina_ratio() / 0.35, 0.0, 1.0))
@@ -481,6 +514,144 @@ func reward_bag_strike(power: float, kick: bool = false) -> void:
 	add_xp(BAG_XP * power)
 
 
+# --- Supplements -----------------------------------------------------------------------------
+
+func has_protein() -> bool:
+	return protein_timer > 0.0
+
+
+func has_preworkout() -> bool:
+	return preworkout_timer > 0.0
+
+
+## Muscle and XP multiplier from the protein shake: PROTEIN_GAIN while it lasts, otherwise 1.
+func get_protein_multiplier() -> float:
+	return PROTEIN_GAIN if has_protein() else 1.0
+
+
+## Isotonic water: a full stamina bar, and an active strain heals in half the time left.
+func drink_isotonic() -> void:
+	is_exhausted = false
+	restore_stamina(max_stamina)
+	if is_strained():
+		injury_timer *= 0.5
+		status_changed.emit()
+
+
+## Whey protein: double muscle and XP from workout reps for PROTEIN_DURATION.
+func drink_protein() -> void:
+	protein_timer = PROTEIN_DURATION
+	buffs_changed.emit()
+
+
+## Pre-workout: fast stamina regeneration, quicker punches and more lifting power for
+## PREWORKOUT_DURATION.
+func drink_preworkout() -> void:
+	preworkout_timer = PREWORKOUT_DURATION
+	buffs_changed.emit()
+
+
+## Recovery elixir: heals an active strain at once. Returns false when there was none.
+func heal_strain() -> bool:
+	if not is_strained():
+		return false
+	injury_timer = 0.0
+	popup_requested.emit("Strain healed", &"status")
+	status_changed.emit()
+	return true
+
+
+# --- Saving ----------------------------------------------------------------------------------
+
+## The career as plain data for the save file. Buffs, pump and injuries are not kept.
+func to_save() -> Dictionary:
+	return {
+		"Level": level, "XP": xp, "Cash": cash,
+		"Strength": strength, "MaxStamina": max_stamina,
+		"MuscleArms": muscle_arms, "MuscleTorso": muscle_torso, "MuscleLegs": muscle_legs,
+		"GymTenure": gym_tenure, "FightRecord": fight_record.to_save(),
+		"LadderProgress": ladder_progress, "LeagueWins": league_wins,
+		"EndlessLeagueUnlocked": ladder_progress >= FighterRoster.LADDER_SIZE,
+	}
+
+
+## Restores a career written by `to_save()`. Missing or damaged fields keep their defaults.
+func apply_save(data: Dictionary) -> void:
+	_set_defaults()
+	level = maxi(int(_number(data, "Level", 1.0)), 1)
+	xp = maxf(_number(data, "XP", 0.0), 0.0)
+	cash = maxi(int(_number(data, "Cash", 0.0)), 0)
+	strength = maxf(_number(data, "Strength", START_STRENGTH), 1.0)
+	max_stamina = maxf(_number(data, "MaxStamina", START_MAX_STAMINA), 10.0)
+	muscle_arms = clampf(_number(data, "MuscleArms", 0.0), 0.0, MUSCLE_MAX)
+	muscle_torso = clampf(_number(data, "MuscleTorso", 0.0), 0.0, MUSCLE_MAX)
+	muscle_legs = clampf(_number(data, "MuscleLegs", 0.0), 0.0, MUSCLE_MAX)
+	gym_tenure = maxf(_number(data, "GymTenure", 0.0), 0.0)
+	ladder_progress = clampi(int(_number(data, "LadderProgress", 0.0)), 0, FighterRoster.LADDER_SIZE)
+	league_wins = maxi(int(_number(data, "LeagueWins", 0.0)), 0)
+	if data.get("EndlessLeagueUnlocked") == true:
+		ladder_progress = FighterRoster.LADDER_SIZE
+	var record: Variant = data.get("FightRecord")
+	if record is Dictionary:
+		fight_record.load_save(record)
+	stamina = max_stamina
+	rank_title = get_rank_for(level)
+	_announce()
+
+
+## Back to a skinny rookie on day zero.
+func reset_career() -> void:
+	_set_defaults()
+	_announce()
+
+
+func _set_defaults() -> void:
+	level = 1
+	xp = 0.0
+	strength = START_STRENGTH
+	max_stamina = START_MAX_STAMINA
+	stamina = max_stamina
+	muscle_arms = 0.0
+	muscle_torso = 0.0
+	muscle_legs = 0.0
+	pump_level = 0.0
+	warmup_timer = 0.0
+	warmup_progress = 0.0
+	injury_timer = 0.0
+	gym_tenure = 0.0
+	rank_title = get_rank_for(1)
+	is_exhausted = false
+	cash = 0
+	fight_record = FightRecord.new()
+	ladder_progress = 0
+	league_wins = 0
+	protein_timer = 0.0
+	preworkout_timer = 0.0
+	_regen_delay = 0.0
+	_pump_grace = 0.0
+
+
+## Tells every listener that all the numbers changed.
+func _announce() -> void:
+	xp_changed.emit(xp, xp_to_next())
+	strength_changed.emit(strength)
+	stamina_changed.emit(stamina, max_stamina)
+	muscle_changed.emit()
+	pump_changed.emit(pump_level)
+	status_changed.emit()
+	buffs_changed.emit()
+	cash_changed.emit(cash)
+	fight_record_changed.emit(fight_record)
+	profile_reloaded.emit()
+
+
+static func _number(data: Dictionary, key: String, fallback: float) -> float:
+	var value: Variant = data.get(key)
+	if value is float or value is int:
+		return float(value)
+	return fallback
+
+
 ## Plain-data copy of every stat, for the fight system and for saving.
 func get_snapshot() -> Dictionary:
 	return {
@@ -490,14 +661,16 @@ func get_snapshot() -> Dictionary:
 		"pump_level": pump_level, "warmed_up": is_warmed_up(), "strained": is_strained(),
 		"cash": cash, "fight_record": fight_record.to_dictionary(),
 		"ladder_progress": ladder_progress, "league_wins": league_wins,
+		"protein": has_protein(), "preworkout": has_preworkout(),
 	}
 
 
 func _tick_stamina(delta: float) -> void:
+	var rate := PREWORKOUT_REGEN if has_preworkout() else 1.0
 	if _regen_delay > 0.0:
-		_regen_delay -= delta
+		_regen_delay -= delta * rate
 	elif stamina < max_stamina:
-		restore_stamina(max_stamina * STAMINA_REGEN * delta)
+		restore_stamina(max_stamina * STAMINA_REGEN * rate * delta)
 
 
 func _tick_pump(delta: float) -> void:
@@ -521,6 +694,18 @@ func _tick_status(delta: float) -> void:
 			injury_timer = 0.0
 			popup_requested.emit("Strain healed", &"status")
 			status_changed.emit()
+	if protein_timer > 0.0:
+		protein_timer -= delta
+		if protein_timer <= 0.0:
+			protein_timer = 0.0
+			popup_requested.emit("Protein shake wore off", &"warning")
+			buffs_changed.emit()
+	if preworkout_timer > 0.0:
+		preworkout_timer -= delta
+		if preworkout_timer <= 0.0:
+			preworkout_timer = 0.0
+			popup_requested.emit("Pre-workout wore off", &"warning")
+			buffs_changed.emit()
 
 
 static func _roman(number: int) -> String:

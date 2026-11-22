@@ -1,8 +1,9 @@
 class_name HUD
 extends CanvasLayer
-## Dark HUD: profile (rank, days, level, XP), stamina, pump, cash and fight record, status
-## badges, objective, interaction prompt, floating gain popups, the damage vignette and a
-## waypoint marker. Hosts the CombatHUD and the FightCard menu.
+## Dark HUD: profile (rank, days, level, XP), stamina, pump, cash and fight record, status and
+## supplement badges, objective, interaction prompt, floating gain popups, the damage vignette,
+## the pre-workout pulse and a waypoint marker. Hosts the CombatHUD, the FightCard, the BarShop
+## and the PauseMenu.
 ## Driven by PlayerStats and GameState signals plus the bound player.
 
 const ACCENT := Color(0.66, 0.45, 1.0)
@@ -12,6 +13,8 @@ const MUTED := Color(0.66, 0.69, 0.76)
 const GOOD := Color(0.45, 0.95, 0.75)
 const BAD := Color(1.0, 0.3, 0.32)
 const WAYPOINT_MARGIN := 60.0
+## Tint of the pulsing pre-workout vignette.
+const PULSE_TINT := Color(0.72, 0.3, 1.0)
 const POPUP_SLOTS := 5
 ## Font size and colour per popup kind.
 const POPUP_STYLES := {
@@ -41,6 +44,9 @@ var _vignette_tween: Tween
 var _stamina_fill: StyleBoxFlat
 var _pump_fill: StyleBoxFlat
 var _vignette_material: ShaderMaterial
+var _pulse_material: ShaderMaterial
+var _pulse := 0.0
+var _pulse_time := 0.0
 var _popup_slot := 0
 var _in_station := false
 var _in_stance := false
@@ -61,6 +67,11 @@ var _in_bout := false
 @onready var warmup_label: Label = %WarmupLabel
 @onready var injury_badge: Control = %InjuryBadge
 @onready var injury_label: Label = %InjuryLabel
+@onready var pulse_vignette: ColorRect = %PulseVignette
+@onready var protein_badge: Control = %ProteinBadge
+@onready var protein_label: Label = %ProteinLabel
+@onready var preworkout_badge: Control = %PreworkoutBadge
+@onready var preworkout_label: Label = %PreworkoutLabel
 @onready var objective_label: Label = %ObjectiveLabel
 @onready var crosshair: Control = %Crosshair
 @onready var prompt: Control = %Prompt
@@ -73,6 +84,8 @@ var _in_bout := false
 @onready var popups: Control = %Popups
 @onready var combat_hud: CombatHUD = %CombatHUD
 @onready var fight_card: FightCard = %FightCard
+@onready var bar_shop: BarShop = %BarShop
+@onready var pause_menu: PauseMenu = %PauseMenu
 
 
 func _ready() -> void:
@@ -83,6 +96,10 @@ func _ready() -> void:
 	_vignette_material = ShaderMaterial.new()
 	_vignette_material.shader = shader
 	vignette.material = _vignette_material
+	_pulse_material = ShaderMaterial.new()
+	_pulse_material.shader = shader
+	_pulse_material.set_shader_parameter("tint", PULSE_TINT)
+	pulse_vignette.material = _pulse_material
 	prompt.modulate.a = 0.0
 	toast_label.modulate.a = 0.0
 	waypoint.visible = false
@@ -100,6 +117,7 @@ func _ready() -> void:
 	PlayerStats.popup_requested.connect(show_popup)
 	PlayerStats.cash_changed.connect(_on_cash_changed)
 	PlayerStats.fight_record_changed.connect(_on_fight_record_changed)
+	PlayerStats.profile_reloaded.connect(_refresh_profile)
 	_on_cash_changed(PlayerStats.cash)
 	_on_fight_record_changed(PlayerStats.fight_record)
 	_refresh_profile()
@@ -120,6 +138,7 @@ func bind_player(player: Player) -> void:
 	player.combat.stance_changed.connect(_on_stance_changed)
 	player.combat.damage_taken.connect(_on_damage_taken)
 	player.combat.bout_changed.connect(func(active: bool) -> void: _in_bout = active)
+	player.pause_requested.connect(pause_menu.open)
 	combat_hud.bind(player)
 
 
@@ -183,9 +202,10 @@ func flash_vignette(strength: float = 1.0, duration: float = 1.4) -> void:
 	_vignette_tween.tween_property(_vignette_material, "shader_parameter/intensity", 0.0, duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	_update_badges()
 	_update_waypoint()
+	_update_pulse(delta)
 
 
 func _update_badges() -> void:
@@ -203,6 +223,22 @@ func _update_badges() -> void:
 	if injury_badge.visible:
 		var pace := "  -  resting x2" if PlayerStats.resting else ""
 		injury_label.text = "STRAINED  %s%s" % [_clock(PlayerStats.injury_timer), pace]
+	protein_badge.visible = PlayerStats.has_protein()
+	if protein_badge.visible:
+		protein_label.text = "PROTEIN x2  %s" % _clock(PlayerStats.protein_timer)
+	preworkout_badge.visible = PlayerStats.has_preworkout()
+	if preworkout_badge.visible:
+		preworkout_label.text = "PRE-WORKOUT  %s" % _clock(PlayerStats.preworkout_timer)
+
+
+## Pre-workout shows as a faint purple pulse at the edges of the screen.
+func _update_pulse(delta: float) -> void:
+	_pulse = move_toward(_pulse, 1.0 if PlayerStats.has_preworkout() else 0.0, delta * 1.5)
+	if _pulse <= 0.0 and not pulse_vignette.visible:
+		return
+	_pulse_time += delta
+	pulse_vignette.visible = _pulse > 0.0
+	_pulse_material.set_shader_parameter("intensity", _pulse * (0.2 + 0.09 * sin(_pulse_time * 5.2)))
 
 
 func _update_waypoint() -> void:

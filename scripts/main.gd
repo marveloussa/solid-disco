@@ -1,5 +1,9 @@
 extends Node3D
 ## Top-level scene script: wires the player to the HUD and steers the player with objectives.
+## A returning player (the save says they have reached the gym before) starts at its door.
+
+## Where a returning player starts, relative to the beacon in front of the gym door.
+const DOOR_OFFSET := Vector3(0.0, 0.05, 1.5)
 
 @onready var player: Player = $Player
 @onready var hud: HUD = $HUD
@@ -12,6 +16,8 @@ var _fight_objective := ""
 func _ready() -> void:
 	hud.bind_player(player)
 	GameState.set_objective("Grab your bike and ride to the gym")
+	if SaveManager.reached_gym:
+		_resume_at_gym.call_deferred()
 	player.vehicle_changed.connect(_on_vehicle_changed)
 	beacon.reached.connect(_on_gym_reached)
 	PlayerStats.status_changed.connect(_on_status_changed)
@@ -30,6 +36,15 @@ func _on_vehicle_changed(vehicle: Bicycle) -> void:
 
 func _on_gym_reached() -> void:
 	GameState.set_objective("Warm up on the mats by the entrance, then hit the weights")
+	SaveManager.mark_gym_reached()
+
+
+## Skips the ride: puts the player in front of the gym door, facing it.
+func _resume_at_gym() -> void:
+	beacon.active = false
+	beacon.hide()
+	player.place_at(Transform3D(Basis.IDENTITY, beacon.global_position + DOOR_OFFSET), true)
+	GameState.set_objective("Welcome back. " + _next_fight_text() if PlayerStats.level >= 2 else "Warm up on the mats by the entrance, then hit the weights")
 
 
 func _on_status_changed() -> void:

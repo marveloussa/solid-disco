@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Iron Temple"
-config/description="First-person gym & MMA progression game. World, bike ride, gym, first-floor workouts and second-floor fights."
+config/description="First-person gym & MMA progression game: bike ride, workouts, cage fights, a living gym and a supplement bar."
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.4", "Forward Plus")
 
@@ -19,6 +19,8 @@ config/features=PackedStringArray("4.4", "Forward Plus")
 
 GameState="*res://scripts/autoload/game_state.gd"
 PlayerStats="*res://scripts/autoload/player_stats.gd"
+AudioManager="*res://scripts/autoload/audio_manager.gd"
+SaveManager="*res://scripts/autoload/save_manager.gd"
 
 [display]
 
@@ -111,6 +113,11 @@ block={
 dodge={
 "deadzone": 0.2,
 "events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":32,"key_label":0,"unicode":32,"location":0,"echo":false,"script":null)
+]
+}
+toggle_music={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":77,"key_label":0,"unicode":109,"location":0,"echo":false,"script":null)
 ]
 }
 

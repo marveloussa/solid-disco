@@ -83,6 +83,14 @@ func _build() -> void:
 	Build.tube(_pivot, Vector3(0.0, -_length + top + 0.47, 0.0), Vector3.ZERO, 0.012, chain, 4)
 
 
+## Swings the bag without paying anyone out: a regular is working it.
+func nudge(direction: Vector3, power: float = 0.5) -> void:
+	var along := global_transform.basis.inverse() * direction
+	_swing_velocity += Vector2(-along.z, along.x) * 0.3 * power
+	_shudder = maxf(_shudder, 0.4 * power)
+	set_physics_process(true)
+
+
 func _on_struck(strike: Strike) -> void:
 	strike.outcome = Strike.Outcome.HIT
 	strike.dealt = strike.damage
