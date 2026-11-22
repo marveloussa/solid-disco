@@ -25,6 +25,10 @@ var _combat: CombatController
 var _combo_tween: Tween
 var _count_tween: Tween
 var _flash_tween: Tween
+var _counter_tween: Tween
+## The opponent of the bout on screen, and the guard its label is showing (-1 before the first read).
+var _opponent: EnemyFighter = null
+var _shown_guard := -1
 var _callout_tween: Tween
 var _time := 0.0
 var _player_rocked := false
@@ -99,6 +103,12 @@ func _process(delta: float) -> void:
 		UiKit.fill_of(_player_chin).bg_color = UiKit.BAD.lerp(UiKit.GOLD, pulse)
 	if _opponent_rocked:
 		UiKit.fill_of(_opponent_chin).bg_color = UiKit.BAD.lerp(UiKit.GOLD, pulse)
+	if is_instance_valid(_opponent):
+		var shown := _opponent.get_shown_guard()
+		if shown != _shown_guard:
+			_shown_guard = shown
+			_opponent_guard_caption.text = GUARD_NAMES[shown]
+			_opponent_guard_caption.add_theme_color_override(&"font_color", UiKit.MUTED if shown == EnemyFighter.Guard.NONE else UiKit.WHITE)
 	if _clinch_box.visible:
 		_clinch_bar.value = _combat.clinch_progress
 		# The knee is coming up: one push now is worth several.
@@ -129,7 +139,8 @@ func open_bout(profile: FighterProfile, opponent: EnemyFighter) -> void:
 	_opponent_tag.text = profile.get_tag()
 	_set_bar(opponent.health, profile.max_health, _opponent_health)
 	_on_opponent_guard_changed(opponent.guard, profile.guard_max)
-	_on_opponent_guard_mode_changed(opponent.guard_mode)
+	_opponent = opponent
+	_shown_guard = -1
 	_set_bar(opponent.stamina, profile.max_stamina, _opponent_stamina)
 	_on_opponent_chin_changed(0.0, false)
 	_on_player_chin_changed(0.0, false)
@@ -137,7 +148,6 @@ func open_bout(profile: FighterProfile, opponent: EnemyFighter) -> void:
 	_set_dots(0, _player_dots)
 	opponent.health_changed.connect(_set_bar.bind(_opponent_health))
 	opponent.guard_changed.connect(_on_opponent_guard_changed)
-	opponent.guard_mode_changed.connect(_on_opponent_guard_mode_changed)
 	opponent.stamina_changed.connect(_set_bar.bind(_opponent_stamina))
 	opponent.chin_changed.connect(_on_opponent_chin_changed)
 	opponent.knocked_down.connect(_set_dots.bind(_opponent_dots))
@@ -258,10 +268,6 @@ func _on_opponent_guard_changed(current: float, maximum: float) -> void:
 	UiKit.fill_of(_opponent_guard).bg_color = UiKit.BAD if current <= 0.0 else UiKit.ACCENT
 
 
-## Which level the opponent is covering: the other one is open.
-func _on_opponent_guard_mode_changed(mode: EnemyFighter.Guard) -> void:
-	_opponent_guard_caption.text = GUARD_NAMES[mode]
-	_opponent_guard_caption.add_theme_color_override(&"font_color", UiKit.MUTED if mode == EnemyFighter.Guard.NONE else UiKit.WHITE)
 
 
 func _on_clinch_changed(active: bool) -> void:
@@ -295,7 +301,10 @@ func _on_combo_landed(text: String) -> void:
 func _on_counter_opened(_seconds: float) -> void:
 	_flash_screen(Color(0.85, 0.75, 1.0, 0.34), 0.3)
 	_counter.modulate.a = 1.0
-	_flash_tween.tween_property(_counter, "modulate:a", 0.0, 0.25).set_delay(0.45)
+	if _counter_tween != null:
+		_counter_tween.kill()
+	_counter_tween = create_tween()
+	_counter_tween.tween_property(_counter, "modulate:a", 0.0, 0.25).set_delay(0.45)
 
 
 func _flash_screen(color: Color, seconds: float) -> void:
@@ -319,7 +328,7 @@ func _refresh_status() -> void:
 		text = "GASSED   no guard, slow punches, one counter from a KO"
 		color = UiKit.GOLD
 	elif _combat != null and _combat.in_bout and _combat.is_spent():
-		text = "LOW STAMINA   one clean counter-hit ends it"
+		text = "LOW STAMINA   a clean counter-hit puts you down"
 		color = UiKit.GOLD
 	elif _combat != null and _combat.is_sloppy():
 		text = "SLOPPY   mashing: slow punches, x2 stamina, easy to slip"
