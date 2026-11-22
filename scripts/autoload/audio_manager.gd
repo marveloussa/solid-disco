@@ -58,6 +58,9 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_ensure_bus(SFX_BUS)
 	_ensure_bus(MUSIC_BUS)
+	if AudioServer.get_bus_effect_count(0) == 0:
+		# A heavy hit, a crunch and the crowd on one frame add up past full scale.
+		AudioServer.add_bus_effect(0, AudioEffectHardLimiter.new())
 	_sfx = _make_player(SFX_BUS)
 	_sfx_playback = _sfx.get_stream_playback() as AudioStreamGeneratorPlayback
 	_sfx_capacity = _sfx_playback.get_frames_available()
@@ -162,10 +165,17 @@ func _mix_voices() -> void:
 		var position := voice.position
 		var step := voice.step
 		var gain := voice.gain
-		while i < want and position < size:
-			mix[i] += frames[int(position)] * gain
-			position += step
-			i += 1
+		if is_equal_approx(step, 1.0):
+			while i < want and position < size:
+				mix[i] += frames[int(position)] * gain
+				position += 1.0
+				i += 1
+		else:
+			while i < want and position < size:
+				var at := int(position)
+				mix[i] += frames[at].lerp(frames[mini(at + 1, size - 1)], position - at) * gain
+				position += step
+				i += 1
 		voice.position = position
 		if position >= size:
 			_voices.remove_at(index)
