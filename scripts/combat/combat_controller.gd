@@ -168,7 +168,6 @@ var bout_damage_taken := 0.0
 var bout_hits := 0
 var bout_counters := 0
 var bout_intercepts := 0
-var bout_knockdowns := 0
 var bout_baits := 0
 var bout_best_streak := 0
 
@@ -185,6 +184,7 @@ var _buffer := ""
 var _buffer_age := 0.0
 var _stun := 0.0
 var _dodge_time := 99.0
+var _dodge_origin := Vector3.ZERO
 var _dash_left := 0.0
 var _dodge_cooldown := 0.0
 var _slip_roll := 0.0
@@ -386,7 +386,6 @@ func begin_bout() -> void:
 	bout_hits = 0
 	bout_counters = 0
 	bout_intercepts = 0
-	bout_knockdowns = 0
 	bout_baits = 0
 	bout_best_streak = 0
 	_stand_up()
@@ -548,7 +547,9 @@ func _start(key: String) -> void:
 		cost *= SPAM_COST
 		power *= SPAM_POWER
 		combo = &""
-	_strike_cost = cost if PlayerStats.spend_stamina(cost) else 0.0
+	var tank := PlayerStats.stamina
+	var paid := PlayerStats.spend_stamina(cost)
+	_strike_cost = tank - PlayerStats.stamina if paid else 0.0
 	if _strike_cost <= 0.0:
 		power *= GASSED_POWER
 
@@ -665,8 +666,6 @@ func _on_connected(strike: Strike, target: CombatTarget) -> void:
 	var at := target.global_position + Vector3.UP * 0.45
 	var above := at + Vector3.UP * 0.2
 	_play_impact(strike, host, target.global_position + Vector3.UP * (-0.15 if strike.is_body() else 0.2), weight)
-	if strike.knockdown:
-		bout_knockdowns += 1
 	if strike.counter_hit:
 		bout_intercepts += 1
 		combo_landed.emit("INTERCEPT COUNTER x2.5")
@@ -864,6 +863,7 @@ func _try_dodge() -> void:
 	dash_velocity = player.global_transform.basis * direction * lerpf(DASH_SPEED.x, DASH_SPEED.y, footwork) * tired
 	_dash_left = DASH_TIME
 	_dodge_time = 0.0
+	_dodge_origin = player.global_position
 	_dodge_cooldown = lerpf(0.55, 0.38, footwork) / tired
 	_slip_roll = -direction.x * SLIP_ROLL
 	_slip_lean = direction.x
@@ -888,6 +888,9 @@ func receive_strike(strike: Strike, in_reach: bool) -> void:
 		_take_damage(strike)
 		return
 	if _dodge_time < IFRAME_TIME:
+		if not in_reach and not _threatened(strike):
+			# It was never going to reach: nothing was slipped, so there is no counter to earn.
+			return
 		strike.outcome = Strike.Outcome.DODGED
 		if _dodge_time <= PERFECT_WINDOW:
 			strike.perfect = true
@@ -915,6 +918,14 @@ func receive_strike(strike: Strike, in_reach: bool) -> void:
 			strike.counter_hit = true
 			strike.dealt *= COUNTERED_DAMAGE
 	_take_damage(strike)
+
+
+## True when `strike` would have reached the spot the slip in progress started from.
+func _threatened(strike: Strike) -> bool:
+	if strike.reach <= 0.0 or strike.attacker == null:
+		return true
+	var offset := _dodge_origin - strike.attacker.global_position
+	return Vector2(offset.x, offset.z).length() <= strike.reach + 0.1
 
 
 func _open_counter() -> void:
@@ -997,10 +1008,14 @@ func _take_damage(strike: Strike) -> void:
 		result = chin.take(jolt, strike.heavy)
 		if strike.finisher:
 			result = ChinGauge.Result.KNOCKDOWN
+	# Caught clean on the way in. Low on stamina that is a knockdown; with the tank empty it
+	# ends the bout.
+	var caught := clean and strike.counter_hit and is_spent()
+	var spent := caught and PlayerStats.is_exhausted
+	if caught and not spent:
+		result = ChinGauge.Result.KNOCKDOWN
 	if result == ChinGauge.Result.KNOCKDOWN:
 		knockdowns += 1
-	# Caught clean on the way in with nothing left in the tank.
-	var spent := clean and strike.counter_hit and is_spent()
 	if spent or knockdowns >= MAX_KNOCKDOWNS:
 		health = 0.0
 	health_changed.emit(health, max_health)
