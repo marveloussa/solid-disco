@@ -5,7 +5,9 @@ extends Node3D
 ## local +Z side; the fight hall sets the dimensions before adding it.
 ##
 ## A bout: the gate locks, both fighters are placed face to face, "3, 2, 1, FIGHT!", then the
-## opponent's AI and the player's CombatController take over until one of them is knocked out.
+## opponent's AI and the player's CombatController take over until one of them is stopped: by
+## damage, by a second knockdown, or by walking onto a clean counter with an empty tank. Bouts
+## are short and sharp, so the clock runs on the HUD and goes on the result screen.
 ## A win pays cash and XP, advances the ladder and the fight record; a loss pays a little XP.
 ## Either way the result screen offers a rematch or the way out.
 
@@ -29,6 +31,9 @@ const STREAK_BONUS := 0.1
 const MAX_STREAK_BONUS := 0.5
 const FLAWLESS_BONUS := 0.25
 const COUNTER_BONUS := 0.05
+## Share of the purse paid per intercept counter landed and per knockdown scored.
+const INTERCEPT_BONUS := 0.05
+const KNOCKDOWN_BONUS := 0.1
 
 ## Radius of the canvas inside the fence.
 @export var arena_radius := 3.95
@@ -47,6 +52,8 @@ var state := State.IDLE
 var profile: FighterProfile = null
 var opponent: EnemyFighter = null
 var player: Player = null
+## Seconds fought since "FIGHT!".
+var bout_time := 0.0
 
 var _gate: Node3D
 var _gate_shape: CollisionShape3D
@@ -81,6 +88,9 @@ func _physics_process(delta: float) -> void:
 			_timer -= delta
 			if _timer <= 0.0:
 				_advance_count()
+		State.FIGHT:
+			bout_time += delta
+			_hud.set_clock(bout_time)
 		State.FINISH:
 			_timer -= delta
 			if _timer <= 0.0:
@@ -125,6 +135,7 @@ func start_bout(fighter: FighterProfile) -> void:
 	player.combat.begin_bout()
 	_hud.open_bout(fighter, opponent)
 	state = State.COUNTDOWN
+	bout_time = 0.0
 	_count = 0
 	_timer = 0.5
 	bout_started.emit(fighter)
@@ -241,6 +252,14 @@ func _pay_out(won: bool) -> Dictionary:
 			var bonus := roundi(purse * COUNTER_BONUS) * combat.bout_counters
 			rows.append(["Perfect counters x%d" % combat.bout_counters, "+" + PlayerStats.format_cash(bonus), UiKit.GOLD])
 			cash += bonus
+		if combat.bout_intercepts > 0:
+			var bonus := roundi(purse * INTERCEPT_BONUS) * combat.bout_intercepts
+			rows.append(["Intercept counters x%d" % combat.bout_intercepts, "+" + PlayerStats.format_cash(bonus), UiKit.GOLD])
+			cash += bonus
+		if combat.bout_knockdowns > 0:
+			var bonus := roundi(purse * KNOCKDOWN_BONUS) * combat.bout_knockdowns
+			rows.append(["Knockdowns x%d" % combat.bout_knockdowns, "+" + PlayerStats.format_cash(bonus), UiKit.GOLD])
+			cash += bonus
 		xp = profile.xp * share
 		if not rematch_fight:
 			footer = _advance_ladder()
@@ -258,17 +277,33 @@ func _pay_out(won: bool) -> Dictionary:
 	if PlayerStats.rank_title != rank_before:
 		rows.append(["New rank", PlayerStats.rank_title, UiKit.WHITE])
 	rows.append(["Gym tenure", "+%d Days" % days, UiKit.WHITE])
+	var seconds := floori(bout_time)
+	rows.append(["Fight time", "%d:%02d" % [floori(seconds / 60.0), seconds % 60], UiKit.WHITE])
 	rows.append(["Best combo", "x%d" % combat.bout_best_streak, UiKit.WHITE])
 	rows.append(["Record", PlayerStats.fight_record.to_text(), UiKit.WHITE])
 	rows.append(["Cash", PlayerStats.get_cash_text(), UiKit.GOLD])
 	return {
 		"won": won,
 		"title": "VICTORY" if won else "DEFEAT",
-		"subtitle": ("Knockout over %s" if won else "Stopped by %s") % profile.fighter_name,
+		"subtitle": _method(won),
 		"rows": rows,
 		"footer": footer,
 		"has_next": won and FighterRoster.next_after(profile) != null,
 	}
+
+
+## How the bout ended, for the line under the result title.
+func _method(won: bool) -> String:
+	if won:
+		match opponent.finish:
+			&"knockdowns":
+				return "%s stopped: two knockdowns" % profile.fighter_name
+			&"counter":
+				return "Clean KO: %s walked onto a counter with nothing left" % profile.fighter_name
+		return "Knockout over %s" % profile.fighter_name
+	if player.combat.knockdowns >= CombatController.MAX_KNOCKDOWNS:
+		return "Stopped by %s: two knockdowns" % profile.fighter_name
+	return "Knocked out by %s" % profile.fighter_name
 
 
 ## Moves the player up the ladder (or the league) and returns the headline for the result screen.

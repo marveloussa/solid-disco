@@ -26,6 +26,15 @@ const PUNCH_IMPULSE := 40.0
 ## How far the eyes sink and roll when knocked out.
 const KNOCKDOWN_DROP := 1.3
 const KNOCKDOWN_ROLL := 0.55
+## How far the eyes drop for a body shot or behind the body guard.
+const CROUCH_DROP := 0.16
+## Rocked: how far the view rolls and swims (radians) while the legs are gone.
+const ROCKED_ROLL := 0.075
+const ROCKED_DRIFT := Vector2(0.035, 0.05)
+## Clinched: how fast the view is dragged onto the opponent, where it is held and the zoom.
+const CLINCH_TURN := 12.0
+const CLINCH_AIM_HEIGHT := 1.6
+const CLINCH_ZOOM := 9.0
 ## The arms steam from this share of a full pump, and on pre-workout.
 const AURA_PUMP := 0.92
 const PUMP_AURA := Color(1.7, 0.6, 1.5)
@@ -67,6 +76,10 @@ var _camera_roll := 0.0
 var _shake := 0.0
 var _punch := Vector2.ZERO
 var _punch_velocity := Vector2.ZERO
+# A rattle along one line (pitch, yaw), for intercept counters.
+var _rattle := Vector2.ZERO
+var _rattle_time := 0.0
+var _daze_time := 0.0
 var _prompt := ""
 var _focus: Interactable = null
 var _view_blend := 1.0
@@ -160,12 +173,16 @@ func _process(delta: float) -> void:
 		roll = vehicle.lean * ride_camera_lean
 		fast = clampf((vehicle.speed - vehicle.cruise_speed) / (vehicle.boost_speed - vehicle.cruise_speed), 0.0, 1.0)
 	else:
+		_follow_clinch(delta)
 		var look := Basis.from_euler(Vector3(_pitch, _yaw, 0.0))
 		var bob := Vector3.UP * sin(_stride * 2.0) * 0.032 + look.x * cos(_stride) * 0.018
-		# A slip tilts the view; a knockout drops it to the canvas.
+		# A slip tilts the view, a body shot dips it, being rocked makes it swim and a knockdown
+		# drops it to the canvas.
 		var down := smoothstep(0.0, 1.0, combat.view_drop)
-		roll = combat.view_roll + KNOCKDOWN_ROLL * down
-		view = Transform3D(look, get_global_transform_interpolated().origin + Vector3.UP * (eye_height - KNOCKDOWN_DROP * down) + bob * _move_amount)
+		_daze_time += delta
+		roll = combat.view_roll + KNOCKDOWN_ROLL * down + sin(_daze_time * 3.1) * ROCKED_ROLL * combat.view_wobble
+		var eyes := eye_height - KNOCKDOWN_DROP * down - CROUCH_DROP * combat.view_crouch
+		view = Transform3D(look, get_global_transform_interpolated().origin + Vector3.UP * eyes + bob * _move_amount)
 
 	# Ease the view when mounting, dismounting or changing station.
 	if _view_blend < 1.0:
@@ -179,8 +196,13 @@ func _process(delta: float) -> void:
 	# The punch offset springs back to centre, critically damped.
 	_punch_velocity += (-_punch * PUNCH_STIFFNESS - _punch_velocity * 2.0 * sqrt(PUNCH_STIFFNESS)) * delta
 	_punch += _punch_velocity * delta
-	camera.rotation = Vector3(_punch.x + randf_range(-jolt, jolt), _punch.y + randf_range(-jolt, jolt), _camera_roll + randf_range(-jolt, jolt))
-	camera.fov = lerpf(camera.fov, base_fov + speed_fov_boost * fast, 1.0 - exp(-6.0 * delta))
+	# The rattle rings along its line and dies in a fifth of a second; the daze drifts slowly.
+	_rattle_time += delta
+	var ring := _rattle * sin(_rattle_time * 75.0) * exp(-_rattle_time * 16.0)
+	var daze := Vector2(sin(_daze_time * 2.3), sin(_daze_time * 1.7 + 1.0)) * ROCKED_DRIFT * combat.view_wobble
+	camera.rotation = Vector3(_punch.x + ring.x + daze.x + randf_range(-jolt, jolt), _punch.y + ring.y + daze.y + randf_range(-jolt, jolt), _camera_roll + randf_range(-jolt, jolt))
+	var zoom := CLINCH_ZOOM if combat.clinch != null else 0.0
+	camera.fov = lerpf(camera.fov, base_fov + speed_fov_boost * fast - zoom, 1.0 - exp(-6.0 * delta))
 	var preworkout := PlayerStats.has_preworkout()
 	arms.set_aura(preworkout or PlayerStats.pump_level >= PlayerStats.PUMP_MAX * AURA_PUMP, PREWORKOUT_AURA if preworkout else PUMP_AURA)
 	arms.animate(delta, _stride, _move_amount, _sprint_amount, on_foot and not is_on_floor(), torso)
@@ -194,6 +216,13 @@ func add_shake(amount: float) -> void:
 ## Knocks the view by about (pitch, yaw) radians in one direction; it springs straight back.
 func add_view_punch(kick: Vector2) -> void:
 	_punch_velocity += kick * PUNCH_IMPULSE
+
+
+## Rattles the view back and forth along `direction` (pitch, yaw) by up to `strength` radians:
+## the shake of a blow that landed flush.
+func add_directional_shake(direction: Vector2, strength: float) -> void:
+	_rattle = direction.normalized() * strength
+	_rattle_time = 0.0
 
 
 ## Shoves the fighter along the floor (a push kick landing).
@@ -267,6 +296,9 @@ func _look(relative: Vector2) -> void:
 	if station != null:
 		_station_look.x = clampf(_station_look.x - relative.x * mouse_sensitivity, -STATION_LOOK_LIMIT.x, STATION_LOOK_LIMIT.x)
 		_station_look.y = clampf(_station_look.y - relative.y * mouse_sensitivity, -STATION_LOOK_LIMIT.y, STATION_LOOK_LIMIT.y)
+		return
+	if combat.clinch != null:
+		# Held chest to chest: the view belongs to the clinch until it breaks.
 		return
 	_pitch = clampf(_pitch - relative.y * mouse_sensitivity, -1.45, 1.45)
 	if vehicle != null:
@@ -354,6 +386,17 @@ func _stand_at(spot: Transform3D) -> void:
 func _begin_view_blend() -> void:
 	_view_from = head.global_transform
 	_view_blend = 0.0
+
+
+## While an opponent holds a clinch the view is dragged onto them and locked there.
+func _follow_clinch(delta: float) -> void:
+	var holder := combat.clinch
+	if holder == null or not is_instance_valid(holder):
+		return
+	var aim := holder.global_position + Vector3.UP * CLINCH_AIM_HEIGHT - (global_position + Vector3.UP * eye_height)
+	var weight := 1.0 - exp(-CLINCH_TURN * delta)
+	_yaw = lerp_angle(_yaw, atan2(-aim.x, -aim.z), weight)
+	_pitch = lerpf(_pitch, clampf(atan2(aim.y, Vector2(aim.x, aim.z).length()), -0.5, 0.3), weight)
 
 
 func _apply_physique() -> void:
