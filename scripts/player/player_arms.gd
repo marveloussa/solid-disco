@@ -28,6 +28,11 @@ const GUARD_POLE := Vector3(0.45, -1.0, 0.5)
 ## Forearms up in front of the face.
 const BLOCK_HAND := Vector3(0.085, -0.06, -0.29)
 const BLOCK_POLE := Vector3(0.3, -1.0, 0.35)
+## The body guard: elbows dropped onto the ribs, gloves at the bottom of the view.
+const BLOCK_LOW_HAND := Vector3(0.1, -0.25, -0.36)
+const BLOCK_LOW_POLE := Vector3(0.7, -0.6, 0.6)
+## Seconds a feint's twitch lasts.
+const FEINT_TIME := 0.16
 ## Hand path of each punch: from the guard the fist curves past `via` to `end` (beyond arm's
 ## length means full extension). `follow` is how far the shoulder goes with it, `pole` aims the
 ## elbow and `wind` is how far the hand draws back before it leaves.
@@ -37,6 +42,9 @@ const STRIKE_PATHS := {
 	Strike.HOOK: {"via": Vector3(0.52, -0.05, -0.5), "end": Vector3(-0.16, -0.07, -0.52), "follow": Vector3(-0.05, 0.04, -0.14), "pole": Vector3(1.0, 0.05, 0.6), "wind": 0.06},
 	Strike.OVERHAND: {"via": Vector3(0.34, 0.2, -0.42), "end": Vector3(-0.06, -0.04, -0.88), "follow": Vector3(-0.1, 0.06, -0.22), "pole": Vector3(0.9, 0.5, 0.4), "wind": 0.1},
 	Strike.UPPERCUT: {"via": Vector3(0.14, -0.5, -0.42), "end": Vector3(0.02, 0.0, -0.56), "follow": Vector3(-0.06, 0.06, -0.12), "pole": Vector3(0.3, -1.0, 0.6), "wind": 0.05},
+	# Body shots stay under the guard line: a hook that digs round low and a straight to the gut.
+	Strike.BODY_HOOK: {"via": Vector3(0.46, -0.3, -0.44), "end": Vector3(-0.12, -0.27, -0.6), "follow": Vector3(-0.05, -0.03, -0.14), "pole": Vector3(1.0, -0.25, 0.6), "wind": 0.06},
+	Strike.BODY_CROSS: {"via": Vector3(0.12, -0.27, -0.6), "end": Vector3(-0.02, -0.31, -0.9), "follow": Vector3(-0.12, -0.06, -0.24), "pole": Vector3(0.6, -0.9, 0.3), "wind": 0.07},
 }
 # The kicking leg swings up into view from a hip placed higher than the real one, so a front
 # kick is visible without looking down.
@@ -77,6 +85,12 @@ void fragment() {
 ## Hands up with the gloves on. Set by CombatController.
 var fight_stance := false
 var blocking := false
+## The guard is the body guard: elbows down instead of forearms up.
+var guard_low := false
+## Rocked: the hands sag and drift.
+var dazed := false
+## Held in a clinch: the hands are up against the opponent's chest.
+var clinched := false
 ## Speeds up the fight animations when the world is in slow motion.
 var fight_time_scale := 1.0
 
@@ -102,6 +116,9 @@ class Arm:
 	var strike_time := 0.0
 	var strike_startup := 0.1
 	var strike_recovery := 0.2
+	# Seconds into a feint's twitch, or -1.
+	var feint := -1.0
+	var feint_low := false
 
 
 var _arms: Array[Arm] = []
@@ -115,6 +132,10 @@ var _breath := 0.0
 var _sway := Vector2.ZERO
 var _stance := 0.0
 var _block := 0.0
+var _low := 0.0
+var _daze := 0.0
+var _clinch := 0.0
+var _shove := 0.0
 var _flinch := 0.0
 # Scratch results of `_fight_arm`.
 var _fight_shoulder := Vector3.ZERO
@@ -216,6 +237,20 @@ func play_strike(kind: StringName, arm_index: int, startup: float, recovery: flo
 	arm.strike_recovery = maxf(recovery, 0.01)
 
 
+## A feint: the shoulder and glove of one arm (0 left, 1 right) twitch forward and snap back.
+## `low` sells a body shot.
+func play_feint(arm_index: int, low: bool = false) -> void:
+	var arm := _arms[arm_index]
+	arm.strike = &""
+	arm.feint = 0.0
+	arm.feint_low = low
+
+
+## Both hands push out hard: one heave against a clinch.
+func shove() -> void:
+	_shove = 1.0
+
+
 ## Throws the right leg: Strike.KICK is a front kick, Strike.KNEE a knee to the body.
 func play_kick(kind: StringName, startup: float, recovery: float) -> void:
 	_kick = kind
@@ -249,6 +284,7 @@ func set_aura(active: bool, color: Color = Color.WHITE) -> void:
 func cancel_strikes() -> void:
 	for arm in _arms:
 		arm.strike = &""
+		arm.feint = -1.0
 	_kick = &""
 	_leg.visible = false
 
@@ -273,6 +309,10 @@ func animate(delta: float, stride_phase: float, move_amount: float, sprint_amoun
 	var fight_delta := delta * fight_time_scale
 	_stance = move_toward(_stance, 1.0 if fight_stance and not gripping else 0.0, delta * 5.5)
 	_block = move_toward(_block, 1.0 if blocking else 0.0, fight_delta * 11.0)
+	_low = move_toward(_low, 1.0 if guard_low else 0.0, fight_delta * 11.0)
+	_daze = move_toward(_daze, 1.0 if dazed else 0.0, delta * 5.0)
+	_clinch = move_toward(_clinch, 1.0 if clinched else 0.0, delta * 8.0)
+	_shove = move_toward(_shove, 0.0, delta * 6.0)
 	_flinch = move_toward(_flinch, 0.0, delta * 5.0)
 	if _stance <= 0.0:
 		cancel_strikes()
@@ -355,8 +395,25 @@ func _fight_arm(arm: Arm, index: int, delta: float, phase: float, move: float) -
 	var shoulder := _mirrored(GUARD_SHOULDER, side)
 	var pole := _mirrored(GUARD_POLE, side)
 	var block := smoothstep(0.0, 1.0, _block)
-	hand = hand.lerp(_mirrored(BLOCK_HAND, side), block)
-	pole = pole.lerp(_mirrored(BLOCK_POLE, side), block)
+	var low := smoothstep(0.0, 1.0, _low)
+	hand = hand.lerp(_mirrored(BLOCK_HAND.lerp(BLOCK_LOW_HAND, low), side), block)
+	pole = pole.lerp(_mirrored(BLOCK_POLE.lerp(BLOCK_LOW_POLE, low), side), block)
+	if _clinch > 0.0:
+		# Palms on the opponent's chest, heaving at every push.
+		var press := Vector3(0.13 * side, -0.13 + sin(_breath * 23.0 + side) * 0.006, -0.36 - 0.14 * _shove)
+		hand = hand.lerp(press, smoothstep(0.0, 1.0, _clinch))
+	if _daze > 0.0:
+		# Rocked: the guard sags and the hands drift on their own.
+		hand += Vector3(sin(_breath * 4.3 + side * 2.0) * 0.035, -0.12 + sin(_breath * 3.1 + side) * 0.02, 0.05) * smoothstep(0.0, 1.0, _daze)
+
+	if arm.feint >= 0.0:
+		arm.feint += delta
+		if arm.feint >= FEINT_TIME:
+			arm.feint = -1.0
+		else:
+			var twitch := sin(arm.feint / FEINT_TIME * PI)
+			hand += Vector3(-0.02 * side, -0.09 if arm.feint_low else 0.012, -0.17) * twitch
+			shoulder += Vector3(-0.03 * side, 0.0, -0.09) * twitch
 
 	if arm.strike != &"":
 		arm.strike_time += delta
