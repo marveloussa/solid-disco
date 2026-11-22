@@ -1,8 +1,9 @@
 class_name FighterRoster
 extends RefCounted
-## The opponents. Five ladder fighters from weakest to strongest, each with a body and a
-## temperament that match the tier, then the Endless Championship League: a new, seeded
-## challenger for every level from 16 up, with scaling stats and purses.
+## The opponents. Five ladder fighters, each a different archetype with its own tempo (see
+## FightStyle), then the Endless Championship League: a new, seeded challenger for every level
+## from 16 up, Pro-tier fighters who mix two archetypes, remember the player's habits and get
+## sharper, not just tougher, as the levels climb.
 ##
 ## Progress lives in PlayerStats (`ladder_progress`, `league_wins`).
 
@@ -11,24 +12,33 @@ const BOSS_LEVEL := 15
 const LEAGUE_START_LEVEL := 16
 ## Share of the purse and XP paid for beating someone again.
 const REMATCH_SHARE := 0.5
+## League levels over which the timing windows tighten to their limit.
+const LEAGUE_SHARPEN_LEVELS := 20.0
 
+## Hybrid styles of the league: the style the challenger opens with, then the one it switches to.
+const _HYBRIDS := [
+	[FightStyle.Archetype.SNIPER, FightStyle.Archetype.PRESSURE],
+	[FightStyle.Archetype.DIRTY, FightStyle.Archetype.PRO],
+	[FightStyle.Archetype.PRESSURE, FightStyle.Archetype.DIRTY],
+	[FightStyle.Archetype.PRO, FightStyle.Archetype.SNIPER],
+]
 const _PREFIXES := [
-	["Rapid", "Flash", "Turbo", "Whirlwind", "Buzzsaw"],
-	["Granite", "Hammer", "Big", "Sledge", "Bulldozer"],
 	["Slick", "Cold", "Patient", "Sly", "Shadow"],
+	["Granite", "Hammer", "Big", "Sledge", "Bulldozer"],
+	["Rapid", "Flash", "Turbo", "Whirlwind", "Buzzsaw"],
 	["Golden", "Savage", "Royal", "Prime", "Iron"],
 ]
 const _NAMES := ["Rico", "Greg", "Sven", "Dante", "Hugo", "Malik", "Yuri", "Tomas", "Kenji", "Andre", "Luca", "Omar", "Felix", "Diego", "Niko", "Bruno"]
-const _STYLE_BLURBS := [
-	"Swarmer. Non-stop volume: weather the flurry, then answer.",
-	"Slugger. Heavy hands and a slow recovery: slip one and counter.",
-	"Counter-striker. Lives behind a high guard: bring the Guard Breaker.",
-	"Technician. Feints and mixed combinations, no easy openings.",
+const _HYBRID_BLURBS := [
+	"Sniper-Pressure. Baits you from the end of his reach, then swarms the moment you flinch.",
+	"Dirty-Pro. Body rips and clinch knees up close, head-body-head bursts when you get away.",
+	"Pressure-Dirty. Never stops walking: flurries upstairs, hooks downstairs, then the grab.",
+	"Pro-Sniper. Broken rhythm with a counter-puncher's eyes. Feint first or pay for it.",
 ]
 
 
 static func ladder() -> Array[FighterProfile]:
-	return [_sam(), _carl(), _boris(), _viktor(), _champ()]
+	return [_sam(), _carl(), _viktor(), _boris(), _champ()]
 
 
 static func is_league_open() -> bool:
@@ -68,78 +78,33 @@ static func league_challenger(level: int) -> FighterProfile:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 104729 * level + 7919
 	var tier := maxi(level - BOSS_LEVEL, 1)
-	var style := rng.randi_range(0, 3)
+	var mix := rng.randi_range(0, _HYBRIDS.size() - 1)
 	var fighter := FighterProfile.new()
 	fighter.id = StringName("league_%d" % level)
-	var prefixes: Array = _PREFIXES[style]
+	var prefixes: Array = _PREFIXES[mix]
 	fighter.fighter_name = "%s %s" % [prefixes[rng.randi_range(0, prefixes.size() - 1)], _NAMES[rng.randi_range(0, _NAMES.size() - 1)]]
 	fighter.level = level
 	fighter.rank = "League Contender" if tier < 5 else PlayerStats.get_rank_for(level)
 	fighter.tenure = "%d Years" % (3 + tier / 2)
-	fighter.blurb = _STYLE_BLURBS[style]
+	fighter.blurb = _HYBRID_BLURBS[mix]
 
-	fighter.max_health = 820.0 + 80.0 * tier
-	fighter.max_stamina = 220.0 + 10.0 * tier
-	fighter.damage = 12.5 + 0.85 * tier
-	fighter.guard_max = 90.0 + 6.0 * tier
-	fighter.guard_regen = 18.0
-	fighter.block_power = 0.82
-	fighter.poise = 14.0 + tier
-	fighter.composure = minf(2.0 + 0.04 * tier, 2.8)
-	# Wind-ups tighten with the level but never below what a player can read.
-	fighter.telegraph = maxf(0.66, 0.9 - 0.012 * tier)
-	fighter.preferred_range = 1.5
-	match style:
-		0:
-			fighter.max_health *= 0.9
-			fighter.damage *= 0.85
-			fighter.move_speed = 2.8
-			fighter.attack_delay = Vector2(0.6, 1.1)
-			fighter.moves = [Strike.JAB, Strike.JAB, Strike.CROSS, Strike.HOOK]
-			fighter.combo_size = Vector2i(2, 4)
-			fighter.guard_uptime = 0.1
-			fighter.block_reaction = 0.2
-			fighter.recovery = 0.9
-			fighter.circling = 0.9
-			fighter.bounce = 1.0
-		1:
-			fighter.max_health *= 1.15
-			fighter.damage *= 1.15
-			fighter.poise += 8.0
-			fighter.telegraph += 0.25
-			fighter.move_speed = 1.6
-			fighter.preferred_range = 1.35
-			fighter.attack_delay = Vector2(0.8, 1.4)
-			fighter.moves = [Strike.HOOK, Strike.OVERHAND, Strike.CROSS, Strike.UPPERCUT]
-			fighter.combo_size = Vector2i(1, 2)
-			fighter.recovery = 1.7
-			fighter.pressure = true
-		2:
-			fighter.guard_max *= 1.4
-			fighter.guard_regen = 30.0
-			fighter.block_power = 0.88
-			fighter.move_speed = 1.9
-			fighter.attack_delay = Vector2(1.8, 2.8)
-			fighter.moves = [Strike.CROSS, Strike.JAB, Strike.UPPERCUT]
-			fighter.combo_size = Vector2i(1, 2)
-			fighter.guard_uptime = 0.9
-			fighter.block_reaction = 0.9
-			fighter.counter_chance = 0.8
-			fighter.circling = 0.35
-		_:
-			fighter.move_speed = 2.4
-			fighter.attack_delay = Vector2(0.7, 1.3)
-			fighter.moves = [Strike.JAB, Strike.JAB, Strike.CROSS, Strike.HOOK, Strike.UPPERCUT, Strike.KICK]
-			fighter.combo_size = Vector2i(2, 4)
-			fighter.guard_uptime = 0.5
-			fighter.block_reaction = 0.55
-			fighter.counter_chance = 0.35
-			fighter.feint_chance = 0.35
-			fighter.circling = 0.55
-			fighter.bounce = 0.5
+	# Pro-tier numbers that creep up slowly; the real climb is in the timing windows.
+	fighter.max_health = 520.0 + 10.0 * tier
+	fighter.max_stamina = 240.0 + 5.0 * tier
+	fighter.stamina_regen = 7.0
+	fighter.damage = minf(12.5 + 0.2 * tier, 16.5)
+	fighter.chin = minf(95.0 + 1.5 * tier, 135.0)
+	fighter.guard_max = 190.0 + 4.0 * tier
+	fighter.guard_regen = 20.0
+	fighter.composure = minf(1.8 + 0.04 * tier, 2.6)
+	fighter.adaptive = true
+	var sharpness := tier / LEAGUE_SHARPEN_LEVELS
+	var pair: Array = _HYBRIDS[mix]
+	fighter.style = FightStyle.make(pair[0]).sharpen(sharpness)
+	fighter.alt_style = FightStyle.make(pair[1]).sharpen(sharpness)
 
-	# Sluggers are thick, swarmers lean; everyone at this level is built.
-	var bulk := 0.85 if style == 1 else (0.55 if style == 0 else 0.7)
+	# Infighters are thick, snipers lean; everyone at this level is built.
+	var bulk := 0.85 if mix == 1 else (0.55 if mix == 0 else 0.7)
 	fighter.build = Vector3(clampf(bulk + rng.randf_range(-0.1, 0.15), 0.0, 1.0), clampf(bulk + rng.randf_range(-0.1, 0.15), 0.0, 1.0), clampf(bulk + rng.randf_range(-0.15, 0.1), 0.0, 1.0))
 	fighter.height = rng.randf_range(0.96, 1.12)
 	fighter.skin = Color(0.98, 0.84, 0.74).lerp(Color(0.42, 0.28, 0.2), rng.randf())
@@ -153,6 +118,7 @@ static func league_challenger(level: int) -> FighterProfile:
 	return fighter
 
 
+## Tier 1, the Noob.
 static func _sam() -> FighterProfile:
 	var fighter := FighterProfile.new()
 	fighter.id = &"sam"
@@ -161,25 +127,16 @@ static func _sam() -> FighterProfile:
 	fighter.level = 1
 	fighter.rank = "Skinny Rookie"
 	fighter.tenure = "First Week"
-	fighter.blurb = "Nervous. Slow, telegraphed single jabs, then he backs off."
+	fighter.blurb = "The Noob. Wide looping hooks you can see coming, then his hands drop and he runs out of breath. Make him miss and hit him."
 	fighter.max_health = 150.0
-	fighter.max_stamina = 70.0
+	fighter.max_stamina = 80.0
+	fighter.stamina_regen = 3.5
 	fighter.damage = 5.0
-	fighter.guard_max = 25.0
+	fighter.chin = 45.0
+	fighter.guard_max = 45.0
 	fighter.guard_regen = 8.0
-	fighter.block_power = 0.7
-	fighter.poise = 0.0
 	fighter.composure = 0.3
-	fighter.move_speed = 1.3
-	fighter.preferred_range = 1.6
-	fighter.attack_delay = Vector2(1.9, 3.0)
-	fighter.telegraph = 1.7
-	fighter.recovery = 1.5
-	fighter.moves = [Strike.JAB]
-	fighter.guard_uptime = 0.05
-	fighter.block_reaction = 0.15
-	fighter.retreat = 0.7
-	fighter.nerves = 1.0
+	fighter.style = FightStyle.make(FightStyle.Archetype.NOOB)
 	fighter.height = 1.07
 	fighter.build = Vector3(0.02, 0.03, 0.04)
 	fighter.skin = Color(0.98, 0.84, 0.74)
@@ -192,6 +149,7 @@ static func _sam() -> FighterProfile:
 	return fighter
 
 
+## Tier 2, the Pressure Fighter.
 static func _carl() -> FighterProfile:
 	var fighter := FighterProfile.new()
 	fighter.id = &"carl"
@@ -200,26 +158,16 @@ static func _carl() -> FighterProfile:
 	fighter.level = 3
 	fighter.rank = "Gym Regular"
 	fighter.tenure = "2 Months"
-	fighter.blurb = "Light on his feet. Rapid jabs in bunches, rarely blocks."
-	fighter.max_health = 260.0
-	fighter.max_stamina = 160.0
-	fighter.damage = 5.5
-	fighter.guard_max = 30.0
-	fighter.block_power = 0.7
-	fighter.poise = 5.0
-	fighter.composure = 0.8
-	fighter.move_speed = 2.7
-	fighter.preferred_range = 1.6
-	fighter.attack_delay = Vector2(0.8, 1.5)
-	fighter.telegraph = 0.82
-	fighter.recovery = 0.9
-	fighter.moves = [Strike.JAB, Strike.JAB, Strike.JAB, Strike.CROSS]
-	fighter.combo_size = Vector2i(2, 3)
-	fighter.guard_uptime = 0.05
-	fighter.block_reaction = 0.1
-	fighter.circling = 0.9
-	fighter.retreat = 0.35
-	fighter.bounce = 1.0
+	fighter.blurb = "Pressure Fighter. Marches you onto the fence behind four-punch flurries that eat a static guard. Step off the line and beat him to the punch."
+	fighter.max_health = 220.0
+	fighter.max_stamina = 170.0
+	fighter.stamina_regen = 9.0
+	fighter.damage = 4.0
+	fighter.chin = 55.0
+	fighter.guard_max = 80.0
+	fighter.guard_regen = 14.0
+	fighter.composure = 0.7
+	fighter.style = FightStyle.make(FightStyle.Archetype.PRESSURE)
 	fighter.build = Vector3(0.22, 0.2, 0.45)
 	fighter.skin = Color(0.82, 0.62, 0.46)
 	fighter.hair = Color(0.1, 0.1, 0.1)
@@ -230,81 +178,67 @@ static func _carl() -> FighterProfile:
 	return fighter
 
 
-static func _boris() -> FighterProfile:
+## Tier 3, the Sniper.
+static func _viktor() -> FighterProfile:
 	var fighter := FighterProfile.new()
-	fighter.id = &"boris"
+	fighter.id = &"viktor"
 	fighter.ladder_index = 2
-	fighter.fighter_name = "Brawler Boris"
+	fighter.fighter_name = "Counter-King Viktor"
 	fighter.level = 6
 	fighter.rank = "Lean Grinder"
 	fighter.tenure = "6 Months"
-	fighter.blurb = "Walks you down with heavy hooks. Slip one and punish the opening."
-	fighter.max_health = 430.0
-	fighter.max_stamina = 120.0
-	fighter.damage = 8.5
-	fighter.guard_max = 45.0
-	fighter.guard_regen = 8.0
-	fighter.block_power = 0.7
-	fighter.poise = 16.0
-	fighter.composure = 1.2
-	fighter.move_speed = 1.45
-	fighter.preferred_range = 1.35
-	fighter.attack_delay = Vector2(0.9, 1.6)
-	fighter.telegraph = 1.25
-	fighter.recovery = 1.9
-	fighter.moves = [Strike.HOOK, Strike.HOOK, Strike.OVERHAND, Strike.CROSS]
-	fighter.combo_size = Vector2i(1, 2)
-	fighter.block_reaction = 0.12
-	fighter.pressure = true
-	fighter.height = 0.98
-	fighter.build = Vector3(0.62, 0.78, 0.55)
-	fighter.skin = Color(0.9, 0.68, 0.55)
-	fighter.hair = Color(0.35, 0.2, 0.1)
-	fighter.shorts = Color(0.75, 0.12, 0.12)
-	fighter.gloves = Color(0.1, 0.1, 0.12)
+	fighter.blurb = "Sniper. Sits at the end of his reach and twitches to make you flinch, then threads a straight through. No glow on the glove means no punch: feint him back."
+	fighter.max_health = 300.0
+	fighter.max_stamina = 150.0
+	fighter.stamina_regen = 9.0
+	fighter.damage = 7.0
+	fighter.chin = 62.0
+	fighter.guard_max = 100.0
+	fighter.guard_regen = 20.0
+	fighter.composure = 1.0
+	fighter.style = FightStyle.make(FightStyle.Archetype.SNIPER)
+	fighter.height = 1.06
+	fighter.build = Vector3(0.5, 0.46, 0.5)
+	fighter.skin = Color(0.72, 0.52, 0.38)
+	fighter.hair = Color(0.05, 0.05, 0.07)
+	fighter.shorts = Color(0.08, 0.08, 0.1)
+	fighter.gloves = Color(0.95, 0.75, 0.15)
 	fighter.cash = 280
 	fighter.xp = 560.0
 	return fighter
 
 
-static func _viktor() -> FighterProfile:
+## Tier 4, the Dirty Boxer.
+static func _boris() -> FighterProfile:
 	var fighter := FighterProfile.new()
-	fighter.id = &"viktor"
+	fighter.id = &"boris"
 	fighter.ladder_index = 3
-	fighter.fighter_name = "Counter-King Viktor"
+	fighter.fighter_name = "Brawler Boris"
 	fighter.level = 10
 	fighter.rank = "Shredded Prospect"
 	fighter.tenure = "1 Year"
-	fighter.blurb = "Tight high guard, punishes spam. Break it with Jab, Jab, Cross."
-	fighter.max_health = 560.0
-	fighter.max_stamina = 170.0
-	fighter.damage = 10.5
-	fighter.guard_max = 120.0
-	fighter.guard_regen = 30.0
-	fighter.block_power = 0.88
-	fighter.poise = 11.0
-	fighter.composure = 1.6
-	fighter.move_speed = 1.9
-	fighter.preferred_range = 1.5
-	fighter.attack_delay = Vector2(2.2, 3.4)
-	fighter.telegraph = 0.95
-	fighter.moves = [Strike.CROSS, Strike.JAB, Strike.UPPERCUT]
-	fighter.combo_size = Vector2i(1, 2)
-	fighter.guard_uptime = 0.92
-	fighter.block_reaction = 0.9
-	fighter.counter_chance = 0.8
-	fighter.circling = 0.35
-	fighter.height = 1.03
-	fighter.build = Vector3(0.72, 0.72, 0.68)
-	fighter.skin = Color(0.72, 0.52, 0.38)
-	fighter.hair = Color(0.05, 0.05, 0.07)
-	fighter.shorts = Color(0.08, 0.08, 0.1)
-	fighter.gloves = Color(0.95, 0.75, 0.15)
+	fighter.blurb = "Dirty Boxer. Walks inside, rips the body until your tank is empty and grabs the clinch for knees. Guard low, keep him off you, break the grip."
+	fighter.max_health = 420.0
+	fighter.max_stamina = 190.0
+	fighter.stamina_regen = 8.0
+	fighter.damage = 11.0
+	fighter.chin = 80.0
+	fighter.guard_max = 170.0
+	fighter.guard_regen = 20.0
+	fighter.composure = 1.4
+	fighter.style = FightStyle.make(FightStyle.Archetype.DIRTY)
+	fighter.height = 0.99
+	fighter.build = Vector3(0.8, 0.9, 0.68)
+	fighter.skin = Color(0.9, 0.68, 0.55)
+	fighter.hair = Color(0.35, 0.2, 0.1)
+	fighter.shorts = Color(0.75, 0.12, 0.12)
+	fighter.gloves = Color(0.1, 0.1, 0.12)
 	fighter.cash = 550
 	fighter.xp = 1100.0
 	return fighter
 
 
+## Tier 5, the Pro and Gym Boss.
 static func _champ() -> FighterProfile:
 	var fighter := FighterProfile.new()
 	fighter.id = &"champ"
@@ -313,28 +247,17 @@ static func _champ() -> FighterProfile:
 	fighter.level = BOSS_LEVEL
 	fighter.rank = "Gym Boss"
 	fighter.tenure = "3 Years"
-	fighter.blurb = "Feints, fast combinations, deep gas tank. Everything at once."
-	fighter.max_health = 820.0
+	fighter.blurb = "The Pro. Calm for a few seconds, then head-body-head in a blink, and he remembers your habits. Feint, go downstairs, never throw the same thing three times."
+	fighter.max_health = 520.0
 	fighter.max_stamina = 240.0
+	fighter.stamina_regen = 7.0
 	fighter.damage = 12.5
-	fighter.guard_max = 95.0
-	fighter.guard_regen = 18.0
-	fighter.block_power = 0.82
-	fighter.poise = 20.0
-	fighter.composure = 2.0
-	fighter.move_speed = 2.4
-	fighter.preferred_range = 1.5
-	fighter.attack_delay = Vector2(0.7, 1.4)
-	fighter.telegraph = 0.85
-	fighter.recovery = 0.95
-	fighter.moves = [Strike.JAB, Strike.JAB, Strike.CROSS, Strike.HOOK, Strike.UPPERCUT, Strike.KICK]
-	fighter.combo_size = Vector2i(2, 4)
-	fighter.guard_uptime = 0.5
-	fighter.block_reaction = 0.55
-	fighter.counter_chance = 0.35
-	fighter.feint_chance = 0.3
-	fighter.circling = 0.55
-	fighter.bounce = 0.5
+	fighter.chin = 95.0
+	fighter.guard_max = 190.0
+	fighter.guard_regen = 24.0
+	fighter.composure = 1.8
+	fighter.adaptive = true
+	fighter.style = FightStyle.make(FightStyle.Archetype.PRO)
 	fighter.height = 1.1
 	fighter.build = Vector3(1.0, 1.0, 0.95)
 	fighter.skin = Color(0.6, 0.42, 0.3)
