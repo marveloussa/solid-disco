@@ -52,6 +52,8 @@ const TURN_SPEED := 7.0
 const TIRED := 0.2
 const FRESH := 0.4
 const TIRED_POWER := 0.75
+## Share of the stamina bar under which a tired fighter has nothing left at all.
+const EMPTY := 0.05
 ## Seconds a clean body shot stops the stamina coming back.
 const WINDED_TIME := 2.5
 const GUARD_BREAK_STAGGER := 0.8
@@ -759,10 +761,14 @@ func _on_struck(strike: Strike) -> void:
 		if body:
 			chin.note_body_hit()
 		result = chin.take(_jolt(strike), strike.heavy)
+	# Caught clean on the way in. Tired, that is a knockdown; with the tank empty it ends the
+	# bout.
+	var caught := strike.counter_hit and is_tired()
+	var spent := caught and stamina <= profile.max_stamina * EMPTY
+	if caught and not spent:
+		result = ChinGauge.Result.KNOCKDOWN
 	if result == ChinGauge.Result.KNOCKDOWN:
 		knockdowns += 1
-	# Caught clean on the way in with nothing left in the tank.
-	var spent := strike.counter_hit and is_tired()
 	if health <= 0.0 or spent or knockdowns >= MAX_KNOCKDOWNS:
 		finish = &"ko" if health <= 0.0 else (&"counter" if spent else &"knockdowns")
 		strike.outcome = Strike.Outcome.KNOCKOUT

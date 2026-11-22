@@ -997,10 +997,14 @@ func _take_damage(strike: Strike) -> void:
 		result = chin.take(jolt, strike.heavy)
 		if strike.finisher:
 			result = ChinGauge.Result.KNOCKDOWN
+	# Caught clean on the way in. Low on stamina that is a knockdown; with the tank empty it
+	# ends the bout.
+	var caught := clean and strike.counter_hit and is_spent()
+	var spent := caught and PlayerStats.is_exhausted
+	if caught and not spent:
+		result = ChinGauge.Result.KNOCKDOWN
 	if result == ChinGauge.Result.KNOCKDOWN:
 		knockdowns += 1
-	# Caught clean on the way in with nothing left in the tank.
-	var spent := clean and strike.counter_hit and is_spent()
 	if spent or knockdowns >= MAX_KNOCKDOWNS:
 		health = 0.0
 	health_changed.emit(health, max_health)
