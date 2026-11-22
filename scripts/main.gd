@@ -65,7 +65,7 @@ func _on_level_up(level: int) -> void:
 
 func _on_stance_changed(active: bool) -> void:
 	if active and not player.combat.in_bout:
-		GameState.set_objective("Hands up: chain jabs and crosses into combos, block and slip")
+		GameState.set_objective("Hands up: mix head and body shots, feint, guard high or low, slip")
 	elif not active:
 		GameState.set_objective(_next_fight_text() if _fight_objective.is_empty() else _fight_objective)
 
