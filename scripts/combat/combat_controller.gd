@@ -395,6 +395,7 @@ func _resolve() -> void:
 	var target := _find_target(_reach)
 	if target == null:
 		# A whiff breaks the chain.
+		AudioManager.play_varied(&"whoosh", 0.6)
 		tracker.clear()
 		strike_resolved.emit(strike)
 		return
@@ -442,6 +443,7 @@ func _on_connected(strike: Strike, target: CombatTarget) -> void:
 
 	var host := get_tree().current_scene
 	var at := target.global_position + Vector3.UP * 0.45
+	_play_impact(strike, host, target.global_position + Vector3.UP * 0.2, weight)
 	if strike.counter:
 		bout_counters += 1
 		combo_landed.emit("COUNTER x2")
@@ -461,6 +463,32 @@ func _on_connected(strike: Strike, target: CombatTarget) -> void:
 		CombatPopup.spawn(host, "BLOCKED", at, CombatPopup.MUTED, 0.13, 0.7)
 	else:
 		CombatPopup.spawn(host, str(maxi(roundi(strike.dealt), 1)), at, CombatPopup.WHITE, 0.13 + 0.09 * weight, 0.8)
+
+
+## Sound, sweat and sparks for a strike that connected.
+func _play_impact(strike: Strike, host: Node, at: Vector3, weight: float) -> void:
+	var spray := (strike.direction + Vector3.UP * 0.7).normalized()
+	match strike.outcome:
+		Strike.Outcome.BLOCKED:
+			AudioManager.play_varied(&"block", 0.5 + 0.5 * weight)
+			if strike.heavy:
+				CombatFx.burst(host, CombatFx.SPARK, at, -strike.direction + Vector3.UP * 0.5, 0.4)
+			return
+		Strike.Outcome.GUARD_BREAK:
+			AudioManager.play(&"snap")
+			AudioManager.play_varied(&"hit_heavy", 0.8)
+			CombatFx.burst(host, CombatFx.SHATTER, at, -strike.direction + Vector3.UP * 0.6)
+			CombatFx.flash(host, at, Color(0.8, 0.6, 1.0), 3.0)
+			return
+	var big := strike.heavy or strike.counter or strike.combo != &"" or strike.outcome == Strike.Outcome.KNOCKOUT
+	AudioManager.play_varied(&"hit_heavy" if big else &"hit_light", 0.6 + 0.4 * weight)
+	if strike.counter:
+		AudioManager.play(&"snap")
+	if big:
+		CombatFx.burst(host, CombatFx.SWEAT, at, spray, 0.6 + weight)
+	if strike.counter or strike.outcome == Strike.Outcome.KNOCKOUT or strike.combo == Strike.KO_FINISHER:
+		CombatFx.burst(host, CombatFx.SPARK, at, spray)
+		CombatFx.flash(host, at, Color(1.0, 0.85, 0.6), 3.5)
 
 
 ## The nearest enabled target inside `reach` and the aim cone, or null.
@@ -568,6 +596,7 @@ func _try_dodge() -> void:
 	_slip_lean = direction.x
 	if direction.z > 0.0:
 		player.add_view_punch(Vector2(0.035, 0.0))
+	AudioManager.play_varied(&"whoosh", 0.8)
 
 
 ## An opponent's strike arrives. `in_reach` is whether it would connect with a fighter who
@@ -605,6 +634,7 @@ func receive_strike(strike: Strike, in_reach: bool) -> void:
 func _open_counter() -> void:
 	_counter_time = COUNTER_SLOWMO + COUNTER_GRACE
 	time_fx.slow_motion(COUNTER_SLOWMO, COUNTER_SLOWMO_SCALE)
+	AudioManager.play(&"bass_drop")
 	PlayerStats.popup_requested.emit("PERFECT DODGE!", &"perfect")
 	counter_opened.emit(_counter_time)
 
@@ -613,6 +643,7 @@ func _break_guard() -> void:
 	blocking = false
 	_stun = GUARD_BREAK_STUN
 	_reset_strike_only()
+	AudioManager.play(&"snap", 0.8, 0.8)
 	PlayerStats.popup_requested.emit("GUARD BROKEN!", &"warning")
 	guard_broken.emit()
 
@@ -645,6 +676,10 @@ func _take_damage(strike: Strike) -> void:
 		player.apply_impulse(strike.direction * strike.knockback * (0.4 if blocked else 1.0))
 	if not blocked and strike.heavy:
 		time_fx.hit_stop(0.04)
+	if blocked:
+		AudioManager.play_varied(&"block", 0.6 + 0.4 * weight)
+	else:
+		AudioManager.play_varied(&"hit_heavy" if strike.heavy else &"hit_light", 0.6 + 0.4 * weight, 0.05)
 
 	health_changed.emit(health, max_health)
 	damage_taken.emit(strike.dealt, blocked)

@@ -1,7 +1,7 @@
 class_name UiKit
 extends RefCounted
-## Flat dark UI pieces for the combat HUD and the fight card, in the HUD's palette: near-black
-## panels, crisp white text, purple accents.
+## Flat dark UI pieces for the combat HUD, the fight card, the bar shop and the pause menu, in
+## the HUD's palette: near-black panels, crisp white text, purple accents.
 
 const PANEL := Color(0.055, 0.063, 0.082, 0.9)
 const PANEL_SOLID := Color(0.07, 0.078, 0.1, 0.98)
@@ -99,6 +99,35 @@ static func button(text: String, primary: bool = false) -> Button:
 	node.add_theme_stylebox_override(&"pressed", box(down, 8, -1, ACCENT, 10.0))
 	node.add_theme_stylebox_override(&"disabled", box(Color(1.0, 1.0, 1.0, 0.04), 8, -1, ACCENT, 10.0))
 	node.add_theme_stylebox_override(&"focus", StyleBoxEmpty.new())
+	node.pressed.connect(func() -> void: AudioManager.play(&"ui_click"))
+	return node
+
+
+## ON / OFF switch. Connect `toggled` and update the text to match.
+static func toggle() -> Button:
+	var node := button("ON")
+	node.toggle_mode = true
+	node.custom_minimum_size = Vector2(96.0, 40.0)
+	node.add_theme_stylebox_override(&"pressed", box(ACCENT, 8, -1, ACCENT, 10.0))
+	node.add_theme_stylebox_override(&"hover_pressed", box(ACCENT.lightened(0.18), 8, -1, ACCENT, 10.0))
+	node.add_theme_color_override(&"font_pressed_color", INK)
+	node.add_theme_color_override(&"font_hover_pressed_color", INK)
+	return node
+
+
+static func slider(from: float, to: float, step: float) -> HSlider:
+	var node := HSlider.new()
+	node.min_value = from
+	node.max_value = to
+	node.step = step
+	node.focus_mode = Control.FOCUS_NONE
+	node.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var track := box(TRACK, 4)
+	track.content_margin_top = 4.0
+	track.content_margin_bottom = 4.0
+	node.add_theme_stylebox_override(&"slider", track)
+	node.add_theme_stylebox_override(&"grabber_area", box(ACCENT, 4))
+	node.add_theme_stylebox_override(&"grabber_area_highlight", box(ACCENT.lightened(0.18), 4))
 	return node
 
 

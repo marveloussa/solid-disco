@@ -5,7 +5,8 @@ extends Node3D
 ## so a new pose only needs hand targets. `set_physique` thickens the arms as the player grows.
 ##
 ## The fight stance (set by CombatController) pulls MMA gloves on, raises the hands into a guard
-## and plays punches, the block and a first-person kick.
+## and plays punches, the block and a first-person kick. `play_drink` lifts a shaker to the
+## mouth; `set_aura` makes the forearms steam at a full pump or on pre-workout.
 
 const UPPER_LENGTH := 0.36
 const FOREARM_LENGTH := 0.34
@@ -42,6 +43,12 @@ const STRIKE_PATHS := {
 const KICK_HIP := Vector3(0.09, -0.3, 0.1)
 const KICK_THIGH := 0.42
 const KICK_SHIN := 0.46
+# Drinking: the right hand brings a shaker up under the view and tips it back.
+const DRINK_TIME := 1.3
+const DRINK_HAND := Vector3(0.1, -0.15, -0.3)
+const DRINK_TIP := Vector3(-0.03, 0.045, 0.05)
+const DRINK_SHOULDER := Vector3(0.2, -0.3, 0.07)
+const DRINK_POLE := Vector3(0.9, -0.5, 0.3)
 
 ## Pulls the view model towards the near plane so the arms never clip into nearby walls.
 const VIEWMODEL_SHADER := """
@@ -121,6 +128,11 @@ var _kick: StringName = &""
 var _kick_time := 0.0
 var _kick_startup := 0.2
 var _kick_recovery := 0.4
+var _drink_time := -1.0
+var _bottle: Node3D
+var _drink_material: ShaderMaterial
+var _auras: Array[GPUParticles3D] = []
+var _aura_process: ParticleProcessMaterial
 
 
 func _ready() -> void:
@@ -145,6 +157,8 @@ func _ready() -> void:
 		arm.glove = _glove(arm.hand, side, padding, trim)
 		_arms.append(arm)
 	_build_leg(skin, _material(shader, shorts_color), _material(shader, shoe_color))
+	_build_bottle(_arms[1].hand, shader)
+	_build_auras()
 	set_physique(0.0, 0.0)
 
 
@@ -212,6 +226,25 @@ func play_kick(kind: StringName, startup: float, recovery: float) -> void:
 	_pose_leg(0.0)
 
 
+## Lifts a shaker of `color` to the mouth and drinks: about DRINK_TIME seconds.
+func play_drink(color: Color) -> void:
+	_drink_material.set_shader_parameter("albedo", color)
+	_drink_time = 0.0
+
+
+func is_drinking() -> bool:
+	return _drink_time >= 0.0
+
+
+## Turns the glow rising off the forearms on or off.
+func set_aura(active: bool, color: Color = Color.WHITE) -> void:
+	if active:
+		_aura_process.color = color
+	for aura in _auras:
+		if aura.emitting != active:
+			aura.emitting = active
+
+
 ## Drops whatever is being thrown and brings the hands straight back to the guard.
 func cancel_strikes() -> void:
 	for arm in _arms:
@@ -244,6 +277,17 @@ func animate(delta: float, stride_phase: float, move_amount: float, sprint_amoun
 	if _stance <= 0.0:
 		cancel_strikes()
 	var stance := smoothstep(0.0, 1.0, _stance)
+	# 0 to 1 as the shaker comes up and goes back down, and how far it is tipped at the top.
+	var drink := 0.0
+	var tip := 0.0
+	if _drink_time >= 0.0:
+		_drink_time += delta
+		if _drink_time >= DRINK_TIME or gripping:
+			_drink_time = -1.0
+		else:
+			drink = smoothstep(0.0, 0.3, _drink_time) * (1.0 - smoothstep(DRINK_TIME - 0.35, DRINK_TIME, _drink_time))
+			tip = sin(clampf((_drink_time - 0.3) / (DRINK_TIME - 0.65), 0.0, 1.0) * PI)
+	_bottle.visible = drink > 0.02
 	# Holding real geometry needs true depth so hands and equipment sort correctly.
 	var pull := 0.0 if _grip_blend > 0.0 else DEPTH_PULL
 	for material in _materials:
@@ -269,10 +313,16 @@ func animate(delta: float, stride_phase: float, move_amount: float, sprint_amoun
 			shoulder = shoulder.lerp(_fight_shoulder, stance)
 			hand = hand.lerp(_fight_hand, stance)
 			pole = pole.lerp(_fight_pole, stance)
+		var roll := side * deg_to_rad(75.0)
+		if index == 1 and drink > 0.0:
+			shoulder = shoulder.lerp(DRINK_SHOULDER, drink)
+			hand = hand.lerp(DRINK_HAND + DRINK_TIP * tip, drink)
+			pole = pole.lerp(DRINK_POLE, drink)
+			roll = lerpf(roll, deg_to_rad(100.0 + 40.0 * tip), drink)
 		shoulder = shoulder.lerp(arm.held_shoulder, blend)
 		hand = hand.lerp(arm.held_hand, blend)
 		pole = pole.lerp(arm.held_pole, blend)
-		_solve(arm, shoulder, hand, pole, side * deg_to_rad(75.0) * (1.0 - blend), blend)
+		_solve(arm, shoulder, hand, pole, roll * (1.0 - blend), blend)
 	_animate_kick(fight_delta)
 
 
@@ -472,6 +522,45 @@ func _build_leg(skin: Material, shorts: Material, shoes: Material) -> void:
 	shoe.size = Vector3(0.1, 0.085, 0.27)
 	_part(_leg_knee, shoe, shoes).position = Vector3(0.0, -KICK_SHIN - 0.03, -0.06)
 	_leg.visible = false
+
+
+## A shaker held in the fist, lid towards the thumb. Hidden until a drink is played.
+func _build_bottle(hand: Node3D, shader: Shader) -> void:
+	_bottle = Node3D.new()
+	_bottle.position = Vector3(0.0, 0.07, -0.02)
+	_bottle.rotation.z = PI * 0.5
+	hand.add_child(_bottle)
+	_drink_material = _material(shader, Color.WHITE)
+	_part(_bottle, _tube(0.03, 0.15), _drink_material)
+	_part(_bottle, _tube(0.032, 0.035), _material(shader, Color(0.1, 0.1, 0.13))).position.y = 0.09
+	_bottle.visible = false
+
+
+## Soft glowing motes that rise off each forearm, drawn only for the first-person camera.
+func _build_auras() -> void:
+	_aura_process = ParticleProcessMaterial.new()
+	_aura_process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	_aura_process.emission_box_extents = Vector3(0.04, FOREARM_LENGTH * 0.5, 0.04)
+	_aura_process.spread = 180.0
+	_aura_process.initial_velocity_min = 0.02
+	_aura_process.initial_velocity_max = 0.1
+	_aura_process.gravity = Vector3(0.0, 0.45, 0.0)
+	_aura_process.scale_min = 0.012
+	_aura_process.scale_max = 0.028
+	_aura_process.color_ramp = CombatFx.fade_ramp(0.3)
+	var mote := CombatFx.particle_mesh(true, true, true)
+	for arm in _arms:
+		var aura := GPUParticles3D.new()
+		aura.amount = 14
+		aura.lifetime = 0.6
+		aura.emitting = false
+		aura.process_material = _aura_process
+		aura.draw_pass_1 = mote
+		aura.layers = FIRST_PERSON_LAYER
+		aura.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		aura.visibility_aabb = AABB(Vector3(-1.0, -1.0, -1.0), Vector3(2.0, 2.0, 2.0))
+		arm.fore.add_child(aura)
+		_auras.append(aura)
 
 
 func _tube(radius: float, length: float) -> CylinderMesh:

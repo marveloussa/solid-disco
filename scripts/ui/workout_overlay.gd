@@ -9,6 +9,7 @@ const DANGER := Color(1.0, 0.3, 0.32)
 const MUTED := Color(0.66, 0.69, 0.76)
 
 var _time := 0.0
+var _buzz_wait := 0.0
 
 @onready var title_label: Label = %Title
 @onready var counter_label: Label = %Counter
@@ -41,8 +42,12 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
-	if danger_label.visible:
+	_buzz_wait = maxf(_buzz_wait - delta, 0.0)
+	if danger_label.is_visible_in_tree():
 		danger_label.modulate.a = 0.6 + 0.4 * sin(_time * 14.0)
+		if _buzz_wait <= 0.0:
+			_buzz_wait = 0.9
+			AudioManager.play(&"buzz", 0.8)
 
 
 func open(station_title: String) -> void:

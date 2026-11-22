@@ -230,7 +230,10 @@ func _set_weight(value: float) -> void:
 	if PlayerStats.is_strained():
 		# A strained lifter cannot load past the reduced safe weight.
 		limit = maxf(floorf(get_safe_weight() / WEIGHT_STEP) * WEIGHT_STEP, MIN_WEIGHT)
-	weight = clampf(value, MIN_WEIGHT, limit)
+	var loaded := clampf(value, MIN_WEIGHT, limit)
+	if not is_equal_approx(loaded, weight) and user != null:
+		AudioManager.play_varied(&"plate", 0.8)
+	weight = loaded
 	barbell.weight = weight
 
 
@@ -263,6 +266,7 @@ func _tick_unrack() -> void:
 	if t < 1.0:
 		return
 	_hold_bar(true)
+	AudioManager.play_varied(&"clank", 0.5)
 	phase = Phase.LIFT
 	progress = 1.0 if _starts_top else 0.0
 	tilt = 0.0
@@ -283,6 +287,7 @@ func _tick_rerack() -> void:
 
 
 func _racked() -> void:
+	AudioManager.play_varied(&"clank", 0.8)
 	phase = Phase.SETUP
 	tilt = 0.0
 	strain = 0.0
@@ -392,6 +397,7 @@ func _drop(injury: bool) -> void:
 	_drop_side = signf(barbell.rotation.z) if absf(barbell.rotation.z) > 0.01 else 1.0
 	_start_move(Phase.DROPPED)
 	_hold_bar(false)
+	AudioManager.play(&"clank", 1.0, 0.8, 0.3)
 	PlayerStats.add_pump(-20.0)
 	if injury:
 		PlayerStats.apply_strain(clampf((overload - 1.0) / 0.6, 0.0, 1.0))

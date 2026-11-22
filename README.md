@@ -2,11 +2,13 @@
 
 First-person stylized Gym & MMA progression game for **Godot 4.4+** (Forward+ renderer; tested on 4.4.1 and 4.7.2).
 
-**Steps 1 to 3 of 4** are in: the intro street, a rideable bicycle, a three-storey gym, full first-floor
-training with stats, levelling, visible muscle growth, a pump multiplier and injuries, and second-floor
-MMA: first-person striking, heavy bags, a five-fighter ladder in the octagon and an endless league.
-Everything is built from Godot's primitive meshes and `StandardMaterial3D`, so there are no imported assets:
-open `project.godot` in the editor and press **F5**.
+**All four steps are in**, and the game is complete: the intro street and a rideable bicycle, a three-storey
+gym, first-floor training with stats, levelling, visible muscle growth, a pump multiplier and injuries,
+second-floor MMA with first-person striking, heavy bags, a five-fighter ladder and an endless league, and a
+living gym: regulars who react to your reputation, a supplement bar on the third floor, synthesized sound
+and music, saving, a pause menu and particle effects.
+Everything is built from Godot's primitive meshes and `StandardMaterial3D`, and every sound is synthesized
+in code, so there are no imported assets of any kind: open `project.godot` in the editor and press **F5**.
 
 ## Controls
 
@@ -17,7 +19,8 @@ open `project.godot` in the editor and press **F5**.
 | `Shift` | Sprint (uses stamina) | Sprint pedalling (uses stamina) |
 | `Space` | Jump | |
 | `E` | Interact with what the crosshair points at | Dismount (prompt shows at walking pace) |
-| `Esc` / click | Release / recapture the mouse | |
+| `Esc` | Pause menu (leaves a station; in a fight it only frees the mouse, click to take it back) | Pause menu |
+| `M` | Mute or unmute the gym speakers | |
 
 The ride from the house to the gym is about 250 m: roughly 18 s sprinting, about 40 s at cruising speed.
 
@@ -58,6 +61,21 @@ Walk up to a heavy bag or into the cage and the hands come up with the gloves on
 Presses chain when they are less than 0.9 s apart; a whiff or taking a clean hit breaks the chain.
 **Perfect counter**: slip within 0.22 s of a strike landing and time slows for a quarter of a second; the
 next strike you throw does x2 damage.
+
+### Supplement bar (3F)
+
+Aim at the bar counter or the bartender and press `E` to open the shop. Each item is drunk the moment it is
+bought; `E` or `Esc` closes the shop.
+
+| Item | Price | Effect |
+| --- | --- | --- |
+| Isotonic Water | $15 | Stamina back to 100%, and an active injury heals in half the time left |
+| Whey Protein Shake | $40 | x2 Muscle and XP from every workout rep for 3 minutes |
+| Hardcore Pre-Workout | $75 | Stamina regenerates 3.5x as fast, +20% punch speed and lifting power, for 2 minutes |
+| Recovery Elixir | $60 | Heals a Strained muscle at once (only sold when you are strained) |
+
+Active buffs show as countdown badges under the profile panel; pre-workout also pulses a faint purple
+vignette and makes the forearms steam.
 
 ## How progression works
 
@@ -107,6 +125,54 @@ next strike you throw does x2 damage.
 - **Feel**: 30 to 60 ms of hit-stop on heavy, combo and counter hits, a directional camera punch, shake, a
   red vignette when hit, floating callouts (`COUNTER x2!`, `GUARD BREAK!`, `KNOCKOUT!`), staggers and a
   slow-motion knockdown.
+
+## The living gym
+
+- **Thirteen regulars** train across the three storeys, plus Joe behind the bar. On the first floor two
+  work dumbbells by the mirror, one squats and one stretches; on the second one works a heavy bag (it
+  swings, and pays you nothing), one does push-ups and two watch the cage; on the third three stand at the
+  bar and the high tables with a shaker; two more walk a lap between the lobby and the bar, up and down both
+  flights of stairs. Each has a name tag: `Mike | LVL 4 | 3 Months`.
+- **Reputation** follows your level. Walk within a few metres and the nearest regular who has not spoken
+  lately comments, and what they say also depends on your arm and torso muscle, your pump and your record.
+  - *Levels 1 to 3:* teasing, and only some of the time. "Careful with that bar, stickman!", "First day, huh?"
+  - *Levels 4 to 9:* a nod and respect. "Solid pump!", "Nice form, bro.", "Saw your last bout!"
+  - *Level 10 and up:* hype. "Make way for the Machine!", "Absolute beast!", "Legend of the gym!" Regulars
+    also step out of your way when you walk close, and come to the cage for your fights.
+- **The crowd.** The ringside pair watch every bout. From level 10 a further `3 + (level - 10) / 2 +
+  win streak` regulars (nine at most) jog to the cage when a bout starts, those from other storeys coming
+  up the stairs, and stand around it until you leave. They throw their arms up and roar on heavy clean
+  hits, guard breaks and knockouts, louder the more of them there are.
+- A walker stops for you if you stand in the way. Regulars are solid: walk around them, unless you are a
+  legend.
+
+## Sound and music
+
+There are no audio files. `AudioManager` synthesizes nineteen effects and a four-bar beat on a worker thread
+at start-up (about half a second) from sine and triangle pitch drops, filtered noise bursts and ringing
+partials, and plays them through two `AudioStreamGenerator` streams.
+
+- **Gym:** plate clanks when a bar is lifted off, racked or dropped, a click per plate when changing the
+  load, a tick per rep (two notes for a perfect rep), a crunch and warning buzz on injury and overload, a
+  gulp at the bar, a chime on level-up.
+- **Fights:** low thuds for hits (deeper and saturated for heavy ones), a sharp snap on counters and guard
+  breaks, a muffled impact on blocks, a whoosh on misses and slips, a bass drop as slow motion starts,
+  countdown beeps, the ring bell at "FIGHT!" and three strokes at the end, crowd roars.
+- **Speakers:** a 128 BPM phonk-style loop (808 kick and sliding sub-bass, claps, hats, a pulsing synth, a
+  quiet cowbell line, all low-passed) plays softly inside the gym, leaks faintly through the walls and
+  fades out on the street. `M` or the pause menu mutes it.
+
+## Saving and the pause menu
+
+- The career is saved to `user://gym_mma_save.json` after every workout session, fight and bar purchase,
+  from the pause menu, and when the window closes. It holds Level, XP, Cash, Strength, MaxStamina, the
+  three muscle groups, the FightRecord, GymTenure, ladder and league progress (with the unlocked Endless
+  League flag) and the settings. Buffs, pump and injuries are not kept.
+- A saved career loads on start-up. Once you have reached the gym, later sessions start at its door
+  instead of at the house.
+- **Pause menu** (`Esc` on foot or on the bike): Resume, Save Game, Mouse Sensitivity (0.3x to 3x), gym
+  speakers and sound effects on or off, Reset Career (asks first, keeps the settings, restarts at the
+  house) and Save and Quit.
 
 Fight tuning lives in `MOVES` and the constants at the top of `scripts/combat/combat_controller.gd`,
 `MOVES` in `scripts/combat/enemy_fighter.gd` and the fighter definitions in
@@ -292,12 +358,81 @@ reads the right way round.
 Scripts that build geometry add their meshes, colliders and lights as children at runtime, so the street,
 the gym and the equipment are visible when the game runs, not in the editor viewport.
 
+### Added in Step 4
+
+Autoloads (Project Settings, Autoload), after the existing two:
+
+```
+AudioManager   res://scripts/autoload/audio_manager.gd   procedural sound effects and the gym beat
+SaveManager    res://scripts/autoload/save_manager.gd    JSON save, load, settings, career reset
+```
+
+Input Map: `toggle_music` (M).
+
+`scenes/main.tscn`
+
+```
+Main
+└── Gym
+    ├── Floor1_WeightRoom, Floor2_FightHall, Floor3_Lounge
+    └── GymCrowd (Node3D)                  new: scripts/npc/gym_crowd.gd, NPC spawner and crowd controller
+        └── Mike, Dana, … Nora             13 instances of scenes/npc/gym_npc.tscn, spawned at runtime
+```
+
+`scenes/npc/gym_npc.tscn`
+
+```
+GymNpc (AnimatableBody3D)                  scripts/npc/gym_npc.gd
+├── CollisionShape3D
+├── Model (CharacterModel)                 render layer 1, coloured and shaped per regular
+├── NameTag (Label3D, billboard)           "Mike | LVL 4 | 3 Months"
+└── Bubble (Label3D, billboard)            speech bubble
+```
+
+The labels are on render layer 2, so mirrors do not show them backwards.
+
+`Floor3_Lounge` creates the bar's working parts at runtime:
+
+```
+Floor3_Lounge                              scripts/world/gym_floor_lounge.gd
+└── SupplementBar (Node3D)                 scripts/world/supplement_bar.gd, at the middle of the counter
+    ├── Counter (StaticBody3D, layer 4) → Interactable    "[E] Supplement Bar"
+    └── Bartender                          instance of gym_npc.tscn, activity SERVE
+```
+
+`scenes/ui/hud.tscn`
+
+```
+HUD (CanvasLayer)
+└── Root (Control)
+    ├── Vignette, PulseVignette            new: pre-workout pulse
+    ├── LeftColumn
+    │   └── BuffRow: ProteinBadge → ProteinLabel, PreworkoutBadge → PreworkoutLabel   new
+    ├── … CombatHUD, Popups, FightCard
+    ├── BarShop                            new: instance of scenes/ui/bar_shop.tscn
+    └── PauseMenu                          new: instance of scenes/ui/pause_menu.tscn
+```
+
+`bar_shop.tscn` and `pause_menu.tscn` are a root `Control` with a script that builds its panel from `UiKit`,
+like the Step 3 menus. `PauseMenu` runs with `process_mode = Always`.
+
+Particle effects are created in code and need no nodes of their own: `CombatFx.burst()` adds a one-shot
+`GPUParticles3D` to the scene and frees it; `PlayerArms` owns two `GPUParticles3D` for the forearm aura.
+
 ## Scripts
 
 | Path | Role |
 | --- | --- |
 | `scripts/autoload/player_stats.gd` | Autoload `PlayerStats`: level, XP, strength, stamina, muscles, pump, warm-up, injury, tenure, rank |
 | `scripts/autoload/game_state.gd` | Autoload `GameState`: objective and toast messages |
+| `scripts/autoload/audio_manager.gd` | Autoload `AudioManager`: mixes sound effects and streams the gym beat through `AudioStreamGenerator` |
+| `scripts/autoload/save_manager.gd` | Autoload `SaveManager`: JSON save and load, settings, career reset |
+| `scripts/audio/synth.gd`, `sound_bank.gd`, `gym_beat.gd` | Oscillator and noise building blocks; the nineteen effects; the speaker loop |
+| `scripts/npc/gym_npc.gd` | `GymNpc`: a regular with a name tag, speech bubble and one looping activity |
+| `scripts/npc/gym_crowd.gd`, `reputation.gd` | `GymCrowd`: spawner, remarks, stepping aside, the crowd at the cage. `Reputation`: tier and lines |
+| `scripts/world/supplement_bar.gd`, `scripts/core/supplements.gd` | The bartender and shop prompt; the four consumables |
+| `scripts/ui/bar_shop.gd`, `pause_menu.gd` | Shop and pause menu |
+| `scripts/fx/combat_fx.gd` | `CombatFx`: sweat, spark, shard and confetti bursts, light flashes |
 | `scripts/core/build.gd` | `Build`: primitive mesh, collider, wall and stair helpers with cached meshes and materials |
 | `scripts/core/interactable.gd` | `Interactable`: component the player's interact ray looks for |
 | `scripts/player/player.gd` | `Player`: movement, look, interaction, riding, station seat, camera shake |
@@ -326,10 +461,10 @@ the gym and the equipment are visible when the game runs, not in the editor view
 | `scripts/world/neighborhood.gd` | `Neighborhood`: seeded street generator |
 | `scripts/world/gym.gd`, `gym_floor_*.gd`, `gym_props.gd`, `gym_station.gd` | Gym shell, the three storeys, equipment builders, the `GymStation` marker for props without a mini-game |
 
-Render layers: 1 world (opponents included), 2 first-person only (arms, gloves, held dumbbells), 3
-third-person only (the player's body, seen by mirrors and shadows). Physics layers: 1 world, 2 player, 3 vehicles, 4 interactables.
+Render layers: 1 world (opponents and regulars included), 2 first-person only (arms, gloves, held dumbbells,
+the regulars' name tags and speech bubbles), 3 third-person only (the player's body, seen by mirrors and shadows). Physics layers: 1 world, 2 player, 3 vehicles, 4 interactables.
 
-## PlayerStats for Step 4
+## PlayerStats reference
 
 Read these directly from the `PlayerStats` autoload:
 
@@ -339,31 +474,46 @@ Read these directly from the `PlayerStats` autoload:
 | `level`, `xp`, `rank_title`, `gym_tenure` | Progress; `get_profile_title()` gives "Gym Regular \| 4 Days", `get_overhead_tag()` gives "LVL 3 \| Gym Regular \| 4 Days" |
 | `fight_record` | A `FightRecord`: `wins`, `losses`, `win_streak`, `best_streak`, `total()`, `to_text()` gives "3 W - 1 L" |
 | `ladder_progress`, `league_wins` | Ladder fighters beaten (0 to 5) and Endless League challengers beaten |
-| `strength` | Roughly the safe bench press in kg; `get_effective_strength()` applies strain and fatigue |
+| `strength` | Roughly the safe bench press in kg; `get_effective_strength()` applies strain, fatigue and pre-workout |
 | `stamina`, `max_stamina`, `is_exhausted` | `spend_stamina(amount)` returns false when exhausted |
 | `muscle_arms`, `muscle_torso`, `muscle_legs` | 0 to 100; `get_muscle_visual(group)` gives 0 to 1 for models |
 | `pump_level` | 0 to 100; `get_gain_multiplier()` gives 1.0 to 2.5 |
 | `warmup_timer`, `injury_timer` | Seconds left; `is_warmed_up()`, `is_strained()` |
+| `protein_timer`, `preworkout_timer` | Seconds of each buff left; `has_protein()`, `has_preworkout()`, `drink_isotonic()`, `drink_protein()`, `drink_preworkout()`, `heal_strain()` |
+| `to_save()`, `apply_save(data)`, `reset_career()` | The career as a dictionary, and back |
 
-Signals: `cash_changed`, `fight_record_changed`, `xp_changed`, `level_up`, `rank_changed`, `tenure_changed`,
-`strength_changed`, `stamina_changed`, `exhausted`, `muscle_changed`, `pump_changed`, `status_changed`,
-`injured`, `popup_requested`. `get_snapshot()` returns every stat, including cash and the record, as a
-plain dictionary.
+Signals: `cash_changed`, `fight_record_changed`, `buffs_changed`, `rep_completed`, `profile_reloaded`,
+`xp_changed`, `level_up`, `rank_changed`, `tenure_changed`, `strength_changed`, `stamina_changed`, `exhausted`,
+`muscle_changed`, `pump_changed`, `status_changed`, `injured`, `popup_requested`.
 
 Extension points:
 
-- **The supplement bar**: `if PlayerStats.spend_cash(price):` then apply the buff; listen to `cash_changed`
-  for the price tags. The HUD already shows cash and the record.
-- **Living gym NPCs**: instance `CharacterModel` with `render_layers = 1`, call `set_physique()` and drive
-  `animate()`. Give it a `FightAnimator` (`model.fight_pose = animator.pose`) to shadow-box, or add a
-  `CombatTarget` child to make it hittable. `PlayerStats.format_tag(level, rank, tenure)` builds a tag.
-- **Audio**: `CombatController` emits `strike_resolved(strike)` (kind, outcome, heavy, counter),
-  `damage_taken`, `counter_opened`, `guard_broken` and `knocked_out`; `RingManager` (group `ring`) emits
-  `bout_started` and `bout_finished`.
+- **A new consumable**: add an entry to `Supplements.ITEMS` and a branch in `Supplements.buy()`.
+- **A new regular**: add a line to `GymCrowd.ROSTER`. A new activity is a value in `GymNpc.Activity` and a
+  branch in `GymNpc._animate()`.
+- **A new sound**: add a function to `SoundBank` and its name to `render_all()`, then
+  `AudioManager.play(&"name")`.
 - **A new station**: extend `WorkoutStation`, override `_begin`, `_tick`, `_view` and `handle_input`, and
   place it with `GymProps.workout()`.
 - **More opponents**: add a `FighterProfile` to `FighterRoster.ladder()` or a style to
   `league_challenger()`.
+
+## Final checklist
+
+Checked on Godot 4.4.1 and 4.7.2 by scripted play of the real scene:
+
+- [x] **Step 1** Start at the house, mount the bike, ride to the beacon, walk into the three-storey gym.
+- [x] **Step 2** Use a station, bank reps into muscle, strength, XP and pump; strain and recover.
+- [x] **Step 3** Work a heavy bag; open the fight card, win through the five-fighter ladder into the Endless
+  League; lose a bout and walk out; cash, XP, tenure and the record are paid.
+- [x] **Step 4** Thirteen regulars and a bartender on three storeys; remarks change with the level tier;
+  regulars step aside and gather at the cage from level 10 and cheer; the bar sells and applies all four
+  consumables; nineteen synthesized sounds and the gym beat; save, load, autosave and career reset; pause
+  menu with sensitivity and audio settings; sweat, sparks, shards, confetti and the arm aura.
+- [x] **Together** Stats trained downstairs decide fights upstairs; fight cash buys buffs on the third
+  floor that speed up training and fighting; everything survives a restart.
+- [x] **No stuck input** Leaving a station, the ring, the fight card, the shop and the pause menu each hand
+  back movement and the captured mouse; a career reset reloads the world unpaused at normal speed.
 
 ## Windows build
 

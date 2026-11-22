@@ -11,6 +11,7 @@
 [ext_resource type="PackedScene" path="res://scenes/vehicles/bicycle.tscn" id="9_bicycle"]
 [ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="10_player"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="11_hud"]
+[ext_resource type="Script" path="res://scripts/npc/gym_crowd.gd" id="12_crowd"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
 sky_top_color = Color(0.16, 0.4, 0.86, 1)
@@ -86,6 +87,9 @@ script = ExtResource("5_mma")
 [node name="Floor3_Lounge" type="Node3D" parent="Gym"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 10, 0)
 script = ExtResource("6_lounge")
+
+[node name="GymCrowd" type="Node3D" parent="Gym"]
+script = ExtResource("12_crowd")
 
 [node name="GymBeacon" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -249)

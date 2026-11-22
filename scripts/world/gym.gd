@@ -24,6 +24,9 @@ const LININGS: Array[Color] = [Color(0.86, 0.87, 0.9), Color(0.25, 0.25, 0.3), C
 
 ## The interior is hidden beyond this camera distance so the street view stays cheap.
 @export var interior_draw_distance := 110.0
+## The speakers can be heard this far outside the walls, and how much of them gets through.
+@export var speaker_reach := 14.0
+@export_range(0.0, 1.0) var speaker_leak := 0.4
 
 var _interiors: Array[Node3D] = []
 
@@ -46,6 +49,17 @@ func _process(_delta: float) -> void:
 	var near := view.global_position.distance_to(centre) < interior_draw_distance
 	for interior in _interiors:
 		interior.visible = near
+	AudioManager.gym_presence = _speaker_presence(to_local(view.global_position))
+
+
+## How well the gym speakers are heard from `spot` (local): 1 indoors, fading with distance outside.
+func _speaker_presence(spot: Vector3) -> float:
+	var half := Vector3(WIDTH * 0.5, STOREYS * STOREY_HEIGHT * 0.5, DEPTH * 0.5)
+	var outside := (spot - Vector3(0.0, half.y, -half.z)).abs() - half
+	var distance := Vector3(maxf(outside.x, 0.0), maxf(outside.y, 0.0), maxf(outside.z, 0.0)).length()
+	if distance <= 0.0:
+		return 1.0
+	return speaker_leak * clampf(1.0 - distance / speaker_reach, 0.0, 1.0)
 
 
 func _build_walls() -> void:

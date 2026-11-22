@@ -99,6 +99,8 @@ func leave() -> void:
 	_interactable.enabled = true
 	athlete.exit_station(get_exit_transform())
 	finished.emit(athlete)
+	# Every session is banked the moment it ends.
+	SaveManager.save_game()
 
 
 ## Called when the player presses E or Esc. Stations with a loaded bar put it down first.
