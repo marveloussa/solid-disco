@@ -23,7 +23,7 @@ void fragment() {
 ## The reflection only renders while the viewer is in front of the glass and this close.
 @export var active_distance := 30.0
 @export var frame_color := Color(0.13, 0.14, 0.17)
-## Shows the player's rank above their reflection.
+## Shows the player's level, rank and tenure above their reflection.
 @export var show_name_tag := true
 ## Height above the player's feet the tag appears to float at, and its letter height there.
 @export var name_tag_height := 2.3
@@ -107,8 +107,9 @@ func _place_name_tag(eye: Vector3) -> void:
 	name_tag.visible = true
 
 
+## "LVL 7 | Shredded Prospect | 14 Days", the same tag opponents carry over their heads.
 func _refresh_name_tag() -> void:
-	name_tag.text = "%s\nLvl %d" % [PlayerStats.get_profile_title(), PlayerStats.level]
+	name_tag.text = PlayerStats.get_overhead_tag()
 
 
 ## True while the viewer is in front of the glass on the same storey and some of it is on screen.

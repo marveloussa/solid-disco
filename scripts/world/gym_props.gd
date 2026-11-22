@@ -169,21 +169,6 @@ static func kettlebell(parent: Node, pos: Vector3, color: Color, size: float = 1
 	Build.ring(parent, 0.06 * size, 0.014 * size, pos + Vector3(0.0, 0.21 * size, 0.0), material, Vector3(90.0, 0.0, 0.0), 12)
 
 
-## Hanging punching bag. `ceiling` is the height of the mounting point above the floor.
-static func heavy_bag(parent: Node, pos: Vector3, color: Color, ceiling: float) -> Node3D:
-	var root := station(parent, &"heavy_bag", "Heavy Bag", pos, 0.0, Vector3(0.5, 1.5, 0.5), 0.85)
-	var chain := steel()
-	Build.cyl(root, 0.2, 1.3, Vector3(0.0, 1.55, 0.0), Build.mat(color, 0.55))
-	Build.cyl(root, 0.205, 0.07, Vector3(0.0, 2.2, 0.0), frame())
-	Build.cyl(root, 0.205, 0.07, Vector3(0.0, 0.9, 0.0), frame())
-	Build.cyl(root, 0.203, 0.14, Vector3(0.0, 1.85, 0.0), Build.mat(Color(0.95, 0.95, 0.97), 0.6))
-	for i in 4:
-		var angle := i * PI * 0.5 + PI * 0.25
-		Build.tube(root, Vector3(cos(angle) * 0.15, 2.23, sin(angle) * 0.15), Vector3(0.0, 2.7, 0.0), 0.008, chain, 4)
-	Build.tube(root, Vector3(0.0, 2.7, 0.0), Vector3(0.0, ceiling, 0.0), 0.012, chain, 4)
-	return root
-
-
 static func bench(parent: Node, pos: Vector3, yaw_deg: float, length: float, color: Color) -> Node3D:
 	var root := Build.group(parent, "Bench", pos, yaw_deg)
 	Build.blocker(root, Vector3(length, 0.5, 0.45), Vector3(0.0, 0.25, 0.0))

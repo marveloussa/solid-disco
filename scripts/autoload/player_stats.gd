@@ -1,7 +1,7 @@
 extends Node
 ## Autoload `PlayerStats`: the single source of truth for the fighter's progression and condition.
 ## Workout stations pay out through `reward_rep()`; the HUD, the player rig and the fight system
-## read the properties and listen to the signals.
+## read the properties and listen to the signals. Fights pay into `cash` and `fight_record`.
 ##
 ## Tuned to run about ten times faster than real life: roughly half an hour of training takes a
 ## skinny rookie to a lean, shredded build.
@@ -21,6 +21,8 @@ signal status_changed
 signal injured(duration: float)
 ## Floating HUD text. `kind` is &"gain", &"perfect", &"level", &"status" or &"warning".
 signal popup_requested(text: String, kind: StringName)
+signal cash_changed(cash: int)
+signal fight_record_changed(record: FightRecord)
 
 const MUSCLE_MAX := 100.0
 const PUMP_MAX := 100.0
@@ -74,6 +76,22 @@ const REST_RECOVERY_FACTOR := 2.0
 const WARMUP_RISK_FACTOR := 0.2
 const TIRED_RISK_FACTOR := 1.6
 
+# Fighting.
+## Strength a rookie walks in with; punch power grows from here.
+const FIGHT_BASE_STRENGTH := 20.0
+const BASE_HEALTH := 100.0
+const HEALTH_PER_LEVEL := 5.0
+## Strike speed while strained, and with an empty stamina bar.
+const STRAIN_FIGHT_SPEED := 0.72
+const GASSED_FIGHT_SPEED := 0.6
+## Days of gym tenure a fight camp is worth.
+const WIN_TENURE_DAYS := 3.0
+const LOSS_TENURE_DAYS := 1.0
+# Heavy bag work, per clean strike.
+const BAG_XP := 1.6
+const BAG_CONDITIONING := 0.03
+const BAG_MUSCLE := 0.03
+
 var level := 1
 var xp := 0.0
 ## Roughly the bench press, in kilograms, the fighter handles safely.
@@ -99,6 +117,13 @@ var is_exhausted := false
 ## Set every physics tick by the player: resting doubles injury recovery, training adds tenure.
 var resting := false
 var training := false
+## Prize money in dollars. Spend it through `spend_cash()`.
+var cash := 0
+var fight_record := FightRecord.new()
+## Ladder opponents beaten so far, which is also the index of the next one.
+var ladder_progress := 0
+## Endless Championship League challengers beaten.
+var league_wins := 0
 
 var _regen_delay := 0.0
 var _pump_grace := 0.0
@@ -125,6 +150,22 @@ func get_days() -> int:
 func get_profile_title() -> String:
 	var days := get_days()
 	return "%s | %d %s" % [rank_title, days, "Day" if days == 1 else "Days"]
+
+
+## "LVL 7 | Shredded Prospect | 14 Days": the tag that floats over the fighter's head.
+func get_overhead_tag() -> String:
+	return format_tag(level, rank_title, get_tenure_text())
+
+
+## "14 Days"
+func get_tenure_text() -> String:
+	var days := get_days()
+	return "%d %s" % [days, "Day" if days == 1 else "Days"]
+
+
+## Overhead tag layout shared by the player and every opponent.
+static func format_tag(tag_level: int, title: String, tenure: String) -> String:
+	return "LVL %d | %s | %s" % [tag_level, title, tenure]
 
 
 func get_rank_for(target_level: int) -> String:
@@ -341,6 +382,105 @@ func get_injury_risk() -> float:
 	return risk
 
 
+# --- Cash and fight record -------------------------------------------------------------------
+
+func add_cash(amount: int) -> void:
+	cash = maxi(cash + amount, 0)
+	cash_changed.emit(cash)
+
+
+func can_afford(price: int) -> bool:
+	return cash >= price
+
+
+## Pays `price` and returns true, or returns false and leaves the wallet alone.
+func spend_cash(price: int) -> bool:
+	if price < 0 or cash < price:
+		return false
+	cash -= price
+	cash_changed.emit(cash)
+	return true
+
+
+## "$1,250"
+func get_cash_text() -> String:
+	return format_cash(cash)
+
+
+static func format_cash(amount: int) -> String:
+	var digits := str(absi(amount))
+	var grouped := ""
+	while digits.length() > 3:
+		grouped = "," + digits.right(3) + grouped
+		digits = digits.left(digits.length() - 3)
+	return ("-$" if amount < 0 else "$") + digits + grouped
+
+
+## Books a finished bout: updates the record and adds the fight camp to the gym tenure.
+func record_fight(won: bool) -> void:
+	fight_record.add_result(won)
+	add_tenure(WIN_TENURE_DAYS if won else LOSS_TENURE_DAYS)
+	fight_record_changed.emit(fight_record)
+
+
+func add_tenure(days: float) -> void:
+	var before := get_days()
+	gym_tenure += days
+	if get_days() != before:
+		tenure_changed.emit(get_days())
+
+
+# --- Fighting --------------------------------------------------------------------------------
+
+## Share of the fighter's power available right now: a strain and deep fatigue both cut it.
+func get_fight_condition() -> float:
+	return get_effective_strength() / maxf(strength, 1.0)
+
+
+## Damage multiplier for punches, from Strength and arm muscle. 1.0 for an untrained rookie.
+func get_punch_power() -> float:
+	var trained := maxf(strength - FIGHT_BASE_STRENGTH, 0.0) / 80.0 + 0.8 * muscle_arms / MUSCLE_MAX
+	return (1.0 + trained) * get_fight_condition()
+
+
+## Multiplier on the damage done to a blocking opponent's guard meter.
+func get_guard_break_power() -> float:
+	var trained := maxf(strength - FIGHT_BASE_STRENGTH, 0.0) / 160.0 + muscle_arms / MUSCLE_MAX
+	return (1.0 + trained) * get_fight_condition()
+
+
+## Damage, push and stamina-drain multiplier for kicks and knees, mostly from leg muscle.
+func get_kick_power() -> float:
+	var trained := maxf(strength - FIGHT_BASE_STRENGTH, 0.0) / 320.0 + 1.4 * muscle_legs / MUSCLE_MAX
+	return (1.0 + trained) * get_fight_condition()
+
+
+## Footwork from leg muscle, 0 to 1: faster slips, quicker feet. A strain slows it.
+func get_footwork() -> float:
+	return muscle_legs / MUSCLE_MAX * (STRAIN_SPEED_FACTOR if is_strained() else 1.0)
+
+
+## Strike speed multiplier: punches slow down as stamina runs out and while strained.
+func get_fight_speed() -> float:
+	var speed := STRAIN_FIGHT_SPEED if is_strained() else 1.0
+	if is_exhausted:
+		return speed * GASSED_FIGHT_SPEED
+	return speed * lerpf(GASSED_FIGHT_SPEED, 1.0, clampf(get_stamina_ratio() / 0.35, 0.0, 1.0))
+
+
+## Health for a bout: levels, a thick torso and a deep gas tank all take more punishment.
+func get_max_health() -> float:
+	return BASE_HEALTH + HEALTH_PER_LEVEL * (level - 1) + 0.5 * muscle_torso + 0.15 * (max_stamina - 100.0)
+
+
+## Pays out one clean strike on a heavy bag: a little XP, conditioning and muscle. `power` is
+## the strike's weight (about 1 for a jab). Quiet on purpose, the bag shows its own feedback.
+func reward_bag_strike(power: float, kick: bool = false) -> void:
+	add_max_stamina(BAG_CONDITIONING * power)
+	add_muscle(&"legs" if kick else &"arms", BAG_MUSCLE * power)
+	add_xp(BAG_XP * power)
+
+
 ## Plain-data copy of every stat, for the fight system and for saving.
 func get_snapshot() -> Dictionary:
 	return {
@@ -348,6 +488,8 @@ func get_snapshot() -> Dictionary:
 		"strength": strength, "stamina": stamina, "max_stamina": max_stamina,
 		"muscle_arms": muscle_arms, "muscle_torso": muscle_torso, "muscle_legs": muscle_legs,
 		"pump_level": pump_level, "warmed_up": is_warmed_up(), "strained": is_strained(),
+		"cash": cash, "fight_record": fight_record.to_dictionary(),
+		"ladder_progress": ladder_progress, "league_wins": league_wins,
 	}
 
 
