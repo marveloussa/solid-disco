@@ -1,17 +1,23 @@
 class_name Player
 extends CharacterBody3D
-## First-person controller: walking, sprinting, jumping, mouse look, interaction and riding.
+## First-person controller: walking, sprinting, jumping, mouse look, interaction, riding and
+## using workout stations.
 ##
 ## The body moves on the physics tick. `Head` is top-level with physics interpolation off: every
-## rendered frame it follows the body's interpolated position and takes mouse rotation directly,
-## which keeps the view smooth at any refresh rate.
+## rendered frame it follows the body's interpolated position (or a vehicle seat, or a station's
+## view) and takes mouse rotation directly, which keeps the view smooth at any refresh rate.
 
 signal interact_prompt_changed(text: String)
 signal vehicle_changed(vehicle: Bicycle)
+signal station_changed(station: WorkoutStation)
 
 const RIDE_PITCH := -0.14
-const VIEW_BLEND_TIME := 0.3
+const VIEW_BLEND_TIME := 0.35
 const DISMOUNT_PROMPT_SPEED := 2.5
+## How far the head can turn (yaw, pitch) while seated at a station.
+const STATION_LOOK_LIMIT := Vector2(0.9, 0.6)
+## Standing this still counts as resting.
+const REST_SPEED := 0.6
 
 @export_group("Movement")
 @export var walk_speed := 4.2
@@ -30,30 +36,34 @@ const DISMOUNT_PROMPT_SPEED := 2.5
 ## Share of the bike's lean that rolls the camera.
 @export_range(0.0, 1.0) var ride_camera_lean := 0.6
 
-## The bicycle currently ridden, or null on foot.
+## The bicycle currently ridden, or null.
 var vehicle: Bicycle = null
-## Set false to freeze input (cutscenes, workout minigames).
+## The workout station currently in use, or null.
+var station: WorkoutStation = null
+## Set false to freeze input (cutscenes).
 var controls_enabled := true
 var is_sprinting := false
 
 var _yaw := 0.0
 var _pitch := 0.0
 var _ride_look := 0.0
+var _station_look := Vector2.ZERO
 var _stride := 0.0
 var _move_amount := 0.0
 var _sprint_amount := 0.0
 var _camera_roll := 0.0
+var _shake := 0.0
 var _prompt := ""
 var _focus: Interactable = null
 var _view_blend := 1.0
 var _view_from := Transform3D.IDENTITY
+var _pump_step := -1
 
 @onready var head: Node3D = $Head
 @onready var camera: Camera3D = $Head/Camera3D
 @onready var arms: PlayerArms = $Head/Camera3D/Arms
 @onready var interact_ray: RayCast3D = $Head/Camera3D/InteractRay
 @onready var model: CharacterModel = $Model
-@onready var stamina: Stamina = $Stamina
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
 
 
@@ -62,8 +72,10 @@ func _ready() -> void:
 	_yaw = rotation.y
 	interact_ray.add_exception(self)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	GameState.physique_changed.connect(_apply_physique)
-	_apply_physique(GameState.muscle)
+	PlayerStats.muscle_changed.connect(_apply_physique)
+	PlayerStats.pump_changed.connect(_on_pump_changed)
+	PlayerStats.injured.connect(_on_injured)
+	_apply_physique()
 	head.global_transform = Transform3D(Basis.from_euler(Vector3(_pitch, _yaw, 0.0)), global_position + Vector3.UP * eye_height)
 
 
@@ -71,38 +83,56 @@ func _unhandled_input(event: InputEvent) -> void:
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	if event is InputEventMouseMotion and captured:
 		_look((event as InputEventMouseMotion).screen_relative)
-	elif event.is_action_pressed(&"ui_cancel"):
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event is InputEventMouseButton and event.is_pressed() and not captured:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	elif station != null:
+		if event.is_action_pressed(&"ui_cancel") or event.is_action_pressed(&"interact"):
+			station.request_exit()
+		else:
+			station.handle_input(event)
+	elif event.is_action_pressed(&"ui_cancel"):
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event.is_action_pressed(&"interact"):
 		_interact()
 
 
 func _physics_process(delta: float) -> void:
-	if vehicle == null:
-		_move_on_foot(delta)
-		model.animate(delta, _stride, _move_amount, _pitch, false)
-	else:
+	if station != null:
+		model.animate(delta, station.gait_phase, station.gait_move, 0.0, false)
+	elif vehicle != null:
 		# The bicycle carries this body; see Bicycle._physics_process.
 		model.animate(delta, _stride, 0.0, _pitch, true, vehicle.model.pedal_phase, vehicle.lean)
+	else:
+		_move_on_foot(delta)
+		model.animate(delta, _stride, _move_amount, _pitch, false)
+	_report_activity()
 	_update_focus()
 
 
 func _process(delta: float) -> void:
-	var speed := Vector2(velocity.x, velocity.z).length() if vehicle == null else 0.0
-	var grounded := vehicle == null and is_on_floor()
+	var on_foot := vehicle == null and station == null
+	var speed := Vector2(velocity.x, velocity.z).length() if on_foot else 0.0
+	var grounded := on_foot and is_on_floor()
 	_move_amount = lerpf(_move_amount, clampf(speed / walk_speed, 0.0, 1.0) if grounded else 0.0, 1.0 - exp(-10.0 * delta))
 	_sprint_amount = lerpf(_sprint_amount, 1.0 if is_sprinting and grounded else 0.0, 1.0 - exp(-8.0 * delta))
 	_stride = fmod(_stride + delta * TAU * lerpf(0.95, 1.4, _sprint_amount) * _move_amount, TAU)
 
-	var seat := Transform3D.IDENTITY
+	var torso := Transform3D.IDENTITY
 	var view: Transform3D
 	var roll := 0.0
 	var fast := _sprint_amount
-	if vehicle != null:
-		seat = vehicle.get_seat_transform()
-		view = Transform3D(seat.basis * Basis.from_euler(Vector3(_pitch, _ride_look, 0.0)), seat.origin)
+	if station != null:
+		# The station owns the view and the gait; the mouse only turns the head.
+		torso = station.get_torso_transform()
+		var base := station.get_view_transform()
+		view = Transform3D(base.basis * Basis.from_euler(Vector3(_station_look.y, _station_look.x, 0.0)), base.origin)
+		_stride = station.gait_phase
+		_move_amount = station.gait_move
+		_sprint_amount = station.gait_sprint
+		fast = 0.0
+	elif vehicle != null:
+		torso = vehicle.get_seat_transform()
+		view = Transform3D(torso.basis * Basis.from_euler(Vector3(_pitch, _ride_look, 0.0)), torso.origin)
 		roll = vehicle.lean * ride_camera_lean
 		fast = clampf((vehicle.speed - vehicle.cruise_speed) / (vehicle.boost_speed - vehicle.cruise_speed), 0.0, 1.0)
 	else:
@@ -110,16 +140,23 @@ func _process(delta: float) -> void:
 		var bob := Vector3.UP * sin(_stride * 2.0) * 0.032 + look.x * cos(_stride) * 0.018
 		view = Transform3D(look, get_global_transform_interpolated().origin + Vector3.UP * eye_height + bob * _move_amount)
 
-	# Ease the view between standing and seated positions when mounting or dismounting.
+	# Ease the view when mounting, dismounting or changing station.
 	if _view_blend < 1.0:
 		_view_blend = minf(_view_blend + delta / VIEW_BLEND_TIME, 1.0)
 		view = _view_from.interpolate_with(view, smoothstep(0.0, 1.0, _view_blend))
 	head.global_transform = view
 
 	_camera_roll = lerpf(_camera_roll, roll, 1.0 - exp(-8.0 * delta))
-	camera.rotation.z = _camera_roll
+	_shake = move_toward(_shake, 0.0, delta * 1.6)
+	var jolt := _shake * _shake * 0.06
+	camera.rotation = Vector3(randf_range(-jolt, jolt), randf_range(-jolt, jolt), _camera_roll + randf_range(-jolt, jolt))
 	camera.fov = lerpf(camera.fov, base_fov + speed_fov_boost * fast, 1.0 - exp(-6.0 * delta))
-	arms.animate(delta, _stride, _move_amount, _sprint_amount, vehicle == null and not is_on_floor(), seat)
+	arms.animate(delta, _stride, _move_amount, _sprint_amount, on_foot and not is_on_floor(), torso)
+
+
+## Shakes the camera; `amount` 1 is a hard jolt.
+func add_shake(amount: float) -> void:
+	_shake = maxf(_shake, amount)
 
 
 ## Called by a vehicle when the player mounts it.
@@ -142,15 +179,39 @@ func exit_vehicle(exit_position: Vector3) -> void:
 	_begin_view_blend()
 	_yaw = wrapf(vehicle.global_rotation.y + _ride_look, -PI, PI)
 	vehicle = null
-	global_transform = Transform3D(Basis(Vector3.UP, _yaw), exit_position)
-	velocity = Vector3.ZERO
-	reset_physics_interpolation()
-	collision_shape.set_deferred(&"disabled", false)
+	_stand_at(Transform3D(Basis(Vector3.UP, _yaw), exit_position))
 	arms.set_grips(null, null)
 	vehicle_changed.emit(null)
 
 
+## Called by a workout station when the player starts using it.
+func enter_station(target: WorkoutStation) -> void:
+	_begin_view_blend()
+	station = target
+	velocity = Vector3.ZERO
+	is_sprinting = false
+	collision_shape.set_deferred(&"disabled", true)
+	_station_look = Vector2.ZERO
+	global_transform = target.get_body_transform()
+	reset_physics_interpolation()
+	station_changed.emit(station)
+
+
+## Called by the station when the session ends, with where to stand and face.
+func exit_station(exit: Transform3D) -> void:
+	_begin_view_blend()
+	station = null
+	_yaw = exit.basis.get_euler().y
+	_pitch = 0.0
+	_stand_at(Transform3D(Basis(Vector3.UP, _yaw), exit.origin))
+	station_changed.emit(null)
+
+
 func _look(relative: Vector2) -> void:
+	if station != null:
+		_station_look.x = clampf(_station_look.x - relative.x * mouse_sensitivity, -STATION_LOOK_LIMIT.x, STATION_LOOK_LIMIT.x)
+		_station_look.y = clampf(_station_look.y - relative.y * mouse_sensitivity, -STATION_LOOK_LIMIT.y, STATION_LOOK_LIMIT.y)
+		return
 	_pitch = clampf(_pitch - relative.y * mouse_sensitivity, -1.45, 1.45)
 	if vehicle != null:
 		_ride_look = clampf(_ride_look - relative.x * mouse_sensitivity, -1.9, 1.9)
@@ -171,7 +232,7 @@ func _move_on_foot(delta: float) -> void:
 
 	# Sprinting only costs stamina while actually covering ground.
 	var moving := Vector2(velocity.x, velocity.z).length() > 1.0
-	is_sprinting = wants_sprint and (not moving or stamina.spend(sprint_stamina_cost * delta))
+	is_sprinting = wants_sprint and (not moving or PlayerStats.spend_stamina(sprint_stamina_cost * delta))
 	var target := transform.basis * Vector3(input.x, 0.0, input.y) * (sprint_speed if is_sprinting else walk_speed)
 	var acceleration := ground_acceleration if is_on_floor() else air_acceleration
 	var planar := Vector3(velocity.x, 0.0, velocity.z).lerp(target, 1.0 - exp(-acceleration * delta))
@@ -197,7 +258,9 @@ func _interact() -> void:
 func _update_focus() -> void:
 	var prompt := ""
 	_focus = null
-	if vehicle != null:
+	if station != null:
+		pass  # the workout overlay shows the station's own controls
+	elif vehicle != null:
 		# Only offered at walking pace, so the prompt stays out of the way while riding.
 		if absf(vehicle.speed) < DISMOUNT_PROMPT_SPEED:
 			prompt = vehicle.dismount_text
@@ -210,11 +273,41 @@ func _update_focus() -> void:
 		interact_prompt_changed.emit(prompt)
 
 
+## Tells PlayerStats whether the fighter is resting (heals strains faster) or training.
+func _report_activity() -> void:
+	if station != null:
+		PlayerStats.training = true
+		PlayerStats.resting = station.is_restful()
+	else:
+		PlayerStats.training = false
+		PlayerStats.resting = vehicle == null and is_on_floor() and Vector2(velocity.x, velocity.z).length() < REST_SPEED
+
+
+func _stand_at(spot: Transform3D) -> void:
+	global_transform = spot
+	velocity = Vector3.ZERO
+	reset_physics_interpolation()
+	collision_shape.set_deferred(&"disabled", false)
+
+
 func _begin_view_blend() -> void:
 	_view_from = head.global_transform
 	_view_blend = 0.0
 
 
-func _apply_physique(muscle: float) -> void:
-	arms.muscle = muscle
-	model.muscle = muscle
+func _apply_physique() -> void:
+	var pump := PlayerStats.pump_level / PlayerStats.PUMP_MAX
+	arms.set_physique(PlayerStats.get_muscle_visual(&"arms"), pump)
+	model.set_physique(PlayerStats.get_muscle_visual(&"arms"), PlayerStats.get_muscle_visual(&"torso"), PlayerStats.get_muscle_visual(&"legs"), pump)
+
+
+func _on_pump_changed(pump_level: float) -> void:
+	# The swell is subtle, so only rebuild the arms when it moves a visible step.
+	var step := roundi(pump_level / PlayerStats.PUMP_MAX * 20.0)
+	if step != _pump_step:
+		_pump_step = step
+		_apply_physique()
+
+
+func _on_injured(_duration: float) -> void:
+	add_shake(1.0)

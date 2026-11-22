@@ -3,7 +3,6 @@
 [ext_resource type="Script" path="res://scripts/player/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://scripts/player/player_arms.gd" id="2_arms"]
 [ext_resource type="Script" path="res://scripts/player/character_model.gd" id="3_model"]
-[ext_resource type="Script" path="res://scripts/core/stamina.gd" id="4_stamina"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.28
@@ -34,13 +33,10 @@ far = 1500.0
 
 [node name="InteractRay" type="RayCast3D" parent="Head/Camera3D"]
 target_position = Vector3(0, 0, -3)
-collision_mask = 5
+collision_mask = 13
 
 [node name="Arms" type="Node3D" parent="Head/Camera3D"]
 script = ExtResource("2_arms")
 
 [node name="Model" type="Node3D" parent="."]
 script = ExtResource("3_model")
-
-[node name="Stamina" type="Node" parent="."]
-script = ExtResource("4_stamina")

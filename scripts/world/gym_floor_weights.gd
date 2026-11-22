@@ -66,7 +66,7 @@ func _build_warmup() -> void:
 			Build.box(self, Vector3(2.2, 0.04, 2.2), Vector3(-12.2 + column * 2.2, 0.04, -2.0 - row * 2.2), tile)
 	for i in 3:
 		var mat_color := Color.from_hsv(0.78 + i * 0.09, 0.55, 0.9)
-		Build.box(self, Vector3(0.65, 0.015, 1.8), Vector3(-12.3 + i * 1.3, 0.068, -3.0), Build.mat(mat_color, 0.9))
+		GymProps.yoga_mat(self, Vector3(-12.3 + i * 1.3, 0.06, -3.0), 0.0, mat_color)
 	Build.cyl(self, 0.08, 0.65, Vector3(-8.2, 0.14, -4.6), Build.mat(Color(0.95, 0.4, 0.6), 0.9), false, Vector3(0.0, 30.0, 90.0))
 	Build.ball(self, 0.17, Vector3(-7.4, 0.23, -2.0), Build.mat(Color(0.95, 0.3, 0.25), 0.7))
 	Build.ball(self, 0.14, Vector3(-7.0, 0.2, -2.5), Build.mat(Color(0.2, 0.45, 0.95), 0.7))

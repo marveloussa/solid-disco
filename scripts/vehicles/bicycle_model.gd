@@ -84,7 +84,7 @@ func _ready() -> void:
 		var outer := bar_centre + Vector3(side * 0.32, 0.0, 0.0)
 		Build.tube(steer_pivot, to_pivot * inner, to_pivot * outer, 0.021, rubber)
 		var grip := Marker3D.new()
-		grip.position = to_pivot * (bar_centre + Vector3(side * 0.255, 0.035, 0.02))
+		grip.position = to_pivot * (bar_centre + Vector3(side * 0.255, 0.0, 0.0))
 		steer_pivot.add_child(grip)
 		if side < 0.0:
 			grip_left = grip

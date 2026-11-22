@@ -2,7 +2,7 @@ class_name GymProps
 extends RefCounted
 ## Stylized gym equipment and furniture built from primitives.
 ## Props sit on the floor at y = 0; stations face local +Z, the side the athlete approaches from.
-## Stations get one box collider carrying a GymStation, so the interact ray can use them.
+## Trainable equipment is a WorkoutStation; other usable props carry a GymStation marker.
 
 const STEEL := Color(0.74, 0.77, 0.82)
 const FRAME := Color(0.13, 0.14, 0.17)
@@ -33,18 +33,24 @@ static func station(parent: Node, type: StringName, title: String, pos: Vector3,
 	return root
 
 
-static func barbell(parent: Node, centre: Vector3, plate_color: Color, plates: int = 2) -> void:
-	Build.tube(parent, centre - Vector3(1.08, 0.0, 0.0), centre + Vector3(1.08, 0.0, 0.0), 0.016, steel())
-	for side: float in [-1.0, 1.0]:
-		for i in plates:
-			var color := plate_color if i == 0 else PLATES[(i + 1) % PLATES.size()]
-			Build.cyl(parent, 0.225 - i * 0.04, 0.05, centre + Vector3(side * (0.74 + i * 0.06), 0.0, 0.0), Build.mat(color, 0.6), false, Vector3(0.0, 0.0, 90.0))
-		Build.cyl(parent, 0.035, 0.05, centre + Vector3(side * (0.74 + plates * 0.06), 0.0, 0.0), steel(), false, Vector3(0.0, 0.0, 90.0), -1.0, 8)
+## Places a workout station and gives it an interaction collider. The station builds its own
+## moving parts (barbell, belt); the caller adds the static frame afterwards.
+static func workout(parent: Node, node: WorkoutStation, type: StringName, title: String, pos: Vector3, yaw_deg: float, bounds: Vector3) -> WorkoutStation:
+	node.name = title.to_pascal_case()
+	node.title = title
+	node.station_type = type
+	node.collider_size = bounds
+	node.position = pos
+	node.rotation_degrees.y = yaw_deg
+	parent.add_child(node, true)
+	return node
 
 
-static func bench_press(parent: Node, pos: Vector3, yaw_deg: float, plate_color: Color) -> Node3D:
-	var root := station(parent, &"bench_press", "Bench Press", pos, yaw_deg, Vector3(1.9, 1.25, 2.0))
-	var pad := Build.mat(Color(0.86, 0.16, 0.16), 0.6)
+static func bench_press(parent: Node, pos: Vector3, yaw_deg: float, pad_color: Color) -> Node3D:
+	var lifter := BarbellStation.new()
+	lifter.lift = &"bench_press"
+	var root := workout(parent, lifter, &"bench_press", "Bench Press", pos, yaw_deg, Vector3(1.9, 1.25, 2.0))
+	var pad := Build.mat(pad_color.darkened(0.12), 0.6)
 	Build.box(root, Vector3(0.34, 0.09, 1.3), Vector3(0.0, 0.46, 0.3), pad)
 	Build.box(root, Vector3(0.1, 0.06, 1.2), Vector3(0.0, 0.385, 0.3), frame())
 	Build.box(root, Vector3(0.5, 0.06, 0.08), Vector3(0.0, 0.03, 0.9), frame())
@@ -54,12 +60,13 @@ static func bench_press(parent: Node, pos: Vector3, yaw_deg: float, plate_color:
 		Build.tube(root, Vector3(side * 0.55, 0.0, -0.45), Vector3(side * 0.55, 1.22, -0.45), 0.04, frame())
 		Build.box(root, Vector3(0.1, 0.05, 0.9), Vector3(side * 0.55, 0.025, -0.2), frame())
 		Build.box(root, Vector3(0.06, 0.12, 0.16), Vector3(side * 0.55, 1.03, -0.38), steel())
-	barbell(root, Vector3(0.0, 1.11, -0.36), plate_color)
 	return root
 
 
 static func squat_rack(parent: Node, pos: Vector3, yaw_deg: float, cage_color: Color) -> Node3D:
-	var root := station(parent, &"squat_rack", "Squat Rack", pos, yaw_deg, Vector3(1.9, 2.4, 1.7))
+	var lifter := BarbellStation.new()
+	lifter.lift = &"squat"
+	var root := workout(parent, lifter, &"squat", "Squat Rack", pos, yaw_deg, Vector3(1.9, 2.4, 1.7))
 	var cage := Build.mat(cage_color, 0.5, 0.2)
 	Build.box(root, Vector3(1.5, 0.06, 2.5), Vector3(0.0, 0.03, 0.25), Build.mat(WOOD, 0.7))
 	for side: float in [-1.0, 1.0]:
@@ -72,16 +79,16 @@ static func squat_rack(parent: Node, pos: Vector3, yaw_deg: float, cage_color: C
 	for z: float in [-0.55, 0.5]:
 		Build.tube(root, Vector3(-0.62, 2.35, z), Vector3(0.62, 2.35, z), 0.035, cage)
 	Build.tube(root, Vector3(-0.62, 2.2, 0.5), Vector3(0.62, 2.2, 0.5), 0.02, steel())
-	barbell(root, Vector3(0.0, 1.56, 0.6), PLATES[0], 3)
 	return root
 
 
 static func deadlift_platform(parent: Node, pos: Vector3, yaw_deg: float) -> Node3D:
-	var root := station(parent, &"deadlift", "Deadlift Platform", pos, yaw_deg, Vector3(2.4, 0.5, 0.6))
+	var lifter := BarbellStation.new()
+	lifter.lift = &"deadlift"
+	var root := workout(parent, lifter, &"deadlift", "Deadlift", pos, yaw_deg, Vector3(2.4, 0.5, 0.6))
 	Build.box(root, Vector3(1.3, 0.06, 2.4), Vector3(0.0, 0.03, 0.0), Build.mat(WOOD, 0.7))
 	for side: float in [-1.0, 1.0]:
 		Build.box(root, Vector3(0.75, 0.065, 2.4), Vector3(side * 1.02, 0.032, 0.0), Build.mat(RUBBER))
-	barbell(root, Vector3(0.0, 0.29, 0.0), PLATES[1], 3)
 	return root
 
 
@@ -95,7 +102,10 @@ static func dumbbell(parent: Node, pos: Vector3, head_radius: float, color: Colo
 
 ## Two-tier rack of hex dumbbells graded from light (cool colours) to heavy (hot colours).
 static func dumbbell_rack(parent: Node, pos: Vector3, yaw_deg: float, length: float = 4.6) -> Node3D:
-	var root := station(parent, &"dumbbells", "Dumbbell Rack", pos, yaw_deg, Vector3(length, 1.1, 0.7))
+	var curls := CurlStation.new()
+	curls.body_position = Vector3(0.0, 0.0, 1.05)
+	curls.exit_position = curls.body_position
+	var root := workout(parent, curls, &"dumbbell_curl", "Dumbbell Curls", pos, yaw_deg, Vector3(length, 1.1, 0.7))
 	for side: float in [-1.0, 1.0]:
 		var x := side * (length * 0.5 - 0.06)
 		Build.tube(root, Vector3(x, 0.0, 0.25), Vector3(x, 1.0, -0.2), 0.035, frame())
@@ -114,7 +124,11 @@ static func dumbbell_rack(parent: Node, pos: Vector3, yaw_deg: float, length: fl
 
 
 static func weight_bench(parent: Node, pos: Vector3, yaw_deg: float) -> Node3D:
-	var root := station(parent, &"dumbbell_bench", "Dumbbell Bench", pos, yaw_deg, Vector3(0.5, 0.52, 1.3))
+	# The lifter stands beside the bench, facing local -Z.
+	var curls := CurlStation.new()
+	curls.body_position = Vector3(0.75, 0.0, 0.0)
+	curls.exit_position = curls.body_position
+	var root := workout(parent, curls, &"dumbbell_curl", "Dumbbell Curls", pos, yaw_deg, Vector3(0.5, 0.52, 1.3))
 	Build.box(root, Vector3(0.32, 0.09, 1.25), Vector3(0.0, 0.46, 0.0), Build.mat(Color(0.12, 0.13, 0.16), 0.6))
 	Build.box(root, Vector3(0.1, 0.06, 1.1), Vector3(0.0, 0.385, 0.0), frame())
 	for z: float in [-0.5, 0.5]:
@@ -124,7 +138,7 @@ static func weight_bench(parent: Node, pos: Vector3, yaw_deg: float) -> Node3D:
 
 
 static func treadmill(parent: Node, pos: Vector3, yaw_deg: float) -> Node3D:
-	var root := station(parent, &"treadmill", "Treadmill", pos, yaw_deg, Vector3(0.9, 1.45, 2.0))
+	var root := workout(parent, TreadmillStation.new(), &"treadmill", "Treadmill", pos, yaw_deg, Vector3(0.9, 1.45, 2.0))
 	var shell := Build.mat(Color(0.2, 0.21, 0.25), 0.5)
 	Build.box(root, Vector3(0.84, 0.16, 1.9), Vector3(0.0, 0.1, 0.0), shell)
 	Build.box(root, Vector3(0.6, 0.02, 1.55), Vector3(0.0, 0.19, -0.12), Build.mat(RUBBER))
@@ -136,6 +150,16 @@ static func treadmill(parent: Node, pos: Vector3, yaw_deg: float) -> Node3D:
 		Build.tube(root, Vector3(side * 0.37, 1.08, 0.86), Vector3(side * 0.37, 1.02, 0.2), 0.028, steel())
 	Build.box(root, Vector3(0.86, 0.34, 0.1), Vector3(0.0, 1.36, 0.9), shell, false, Vector3(22.0, 0.0, 0.0))
 	Build.box(root, Vector3(0.56, 0.2, 0.02), Vector3(0.0, 1.37, 0.845), Build.glow(Color(0.25, 0.9, 1.0), 1.8), false, Vector3(22.0, 0.0, 0.0))
+	return root
+
+
+## Warm-up mat. Its collider sits on the interactables layer, so it can be aimed at but walked over.
+static func yoga_mat(parent: Node, pos: Vector3, yaw_deg: float, color: Color) -> Node3D:
+	var warmup := WarmupStation.new()
+	warmup.collider_layer = 8
+	var root := workout(parent, warmup, &"warmup", "Warm Up", pos, yaw_deg, Vector3(0.8, 0.5, 1.9))
+	Build.box(root, Vector3(0.65, 0.015, 1.8), Vector3(0.0, 0.008, 0.0), Build.mat(color, 0.9))
+	Build.box(root, Vector3(0.65, 0.016, 0.06), Vector3(0.0, 0.008, -0.78), Build.mat(color.darkened(0.3), 0.9))
 	return root
 
 

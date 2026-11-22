@@ -23,16 +23,26 @@ void fragment() {
 ## The reflection only renders while the viewer is in front of the glass and this close.
 @export var active_distance := 30.0
 @export var frame_color := Color(0.13, 0.14, 0.17)
+## Shows the player's rank above their reflection.
+@export var show_name_tag := true
+## Height above the player's feet the tag appears to float at, and its letter height there.
+@export var name_tag_height := 2.3
+@export var name_tag_letter_height := 0.22
 
 @onready var viewport: SubViewport = $SubViewport
 @onready var mirror_camera: Camera3D = $SubViewport/MirrorCamera
 @onready var surface: MeshInstance3D = $Surface
+@onready var name_tag: Label3D = $NameTag
 
 
 func _ready() -> void:
 	# Run after the player has moved the view camera this frame.
 	process_priority = 100
 	viewport.size = Vector2i(size * pixels_per_meter)
+	PlayerStats.rank_changed.connect(_refresh_name_tag.unbind(1))
+	PlayerStats.level_up.connect(_refresh_name_tag.unbind(1))
+	PlayerStats.tenure_changed.connect(_refresh_name_tag.unbind(1))
+	_refresh_name_tag()
 
 	var quad := QuadMesh.new()
 	quad.size = size
@@ -62,12 +72,43 @@ func _process(_delta: float) -> void:
 	var eye := to_local(view.global_position)
 	var active := is_visible_in_tree() and _is_seen(view, eye)
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS if active else SubViewport.UPDATE_DISABLED
+	name_tag.visible = false
 	if not active:
 		return
 	# Reflect the eye through the glass and look back out through it. The near plane lies on the
 	# glass, so nothing behind the mirror is drawn.
 	mirror_camera.global_transform = global_transform * Transform3D(Basis(Vector3.UP, PI), Vector3(eye.x, eye.y, -eye.z))
 	mirror_camera.set_frustum(size.y, Vector2(eye.x, -eye.y), eye.z, eye.z + 150.0)
+	_place_name_tag(eye)
+
+
+## Shows the player's rank where a tag floating above their head would appear in the reflection.
+## The label sits on the sight line to that mirrored point, scaled to match, a little in front
+## of the glass: it reads the right way round and stays sharp, which text inside the mirrored
+## image would not.
+func _place_name_tag(eye: Vector3) -> void:
+	var player := get_tree().get_first_node_in_group(&"player") as Node3D
+	if not show_name_tag or player == null:
+		return
+	var head := to_local(player.get_global_transform_interpolated().origin + Vector3.UP * name_tag_height)
+	if head.z < 0.05:
+		return
+	var ray := Vector3(head.x, head.y, -head.z) - eye
+	var on_glass := eye + ray * (eye.z / (eye.z + head.z))
+	if absf(on_glass.x) > size.x * 0.5 - 0.4 or absf(on_glass.y) > size.y * 0.5 - 0.1:
+		return
+	# The label faces the viewer, so seen at an angle it needs room to clear the glass.
+	var slant := Vector2(ray.x, ray.y).length() / ray.length()
+	var half_width := name_tag.text.length() * name_tag_letter_height * 0.11
+	var depth := minf(half_width * slant + 0.02, eye.z * 0.5)
+	var share := (eye.z - depth) / (eye.z + head.z)
+	name_tag.position = eye + ray * share
+	name_tag.pixel_size = name_tag_letter_height / name_tag.font_size * share
+	name_tag.visible = true
+
+
+func _refresh_name_tag() -> void:
+	name_tag.text = "%s\nLvl %d" % [PlayerStats.get_profile_title(), PlayerStats.level]
 
 
 ## True while the viewer is in front of the glass on the same storey and some of it is on screen.

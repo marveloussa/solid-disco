@@ -98,7 +98,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _update_speed(delta: float, throttle: float, wants_boost: bool) -> void:
-	is_boosting = throttle > 0.0 and wants_boost and rider.stamina.spend(boost_stamina_cost * delta)
+	is_boosting = throttle > 0.0 and wants_boost and PlayerStats.spend_stamina(boost_stamina_cost * delta)
 	if throttle > 0.0:
 		var top := boost_speed if is_boosting else cruise_speed
 		if speed <= top:
