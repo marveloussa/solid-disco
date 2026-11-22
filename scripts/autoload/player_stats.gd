@@ -87,7 +87,7 @@ const TIRED_RISK_FACTOR := 1.6
 # Fighting.
 ## Strength a rookie walks in with; punch power grows from here.
 const FIGHT_BASE_STRENGTH := 20.0
-const BASE_HEALTH := 100.0
+const BASE_HEALTH := 140.0
 const HEALTH_PER_LEVEL := 5.0
 ## Composure a rookie brings to a bout: the chin gauge clean hits have to fill to rock them.
 const BASE_CHIN := 60.0

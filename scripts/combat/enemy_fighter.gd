@@ -21,6 +21,9 @@ signal stamina_changed(current: float, maximum: float)
 ## The chin gauge moved; `fill` is 0 to 1 (see ChinGauge.get_fill).
 signal chin_changed(fill: float, rocked: bool)
 signal guard_mode_changed(mode: Guard)
+## The tell over the head changed: its text and colour, "" when it is gone. The HUD repeats it,
+## because up close the fighter's head is out of the top of the view.
+signal cue_changed(text: String, color: Color)
 ## Put on the canvas for the `count`-th time this bout.
 signal knocked_down(count: int)
 signal defeated
@@ -215,6 +218,8 @@ func begin(opponent: Player) -> void:
 	combat.feinted.connect(_on_player_feinted)
 	combat.dodged.connect(_on_player_dodged)
 	combat.strike_resolved.connect(_on_player_strike_resolved)
+	# The HUD carries the name from here on; over the head it would sit on top of the tells.
+	name_tag.visible = false
 	_enter(State.FOOTWORK)
 
 
@@ -294,6 +299,12 @@ func is_tired() -> bool:
 
 func is_guarding() -> bool:
 	return guard_mode != Guard.NONE and state == State.FOOTWORK and guard > 0.0 and _hands_down <= 0.0
+
+
+## The level the fighter is covering right now, for the HUD: NONE whenever the hands are away
+## from the guard, whatever the fighter means to do with them next.
+func get_shown_guard() -> Guard:
+	return guard_mode if is_guarding() else Guard.NONE
 
 
 func set_guard(mode: Guard) -> void:
@@ -475,10 +486,10 @@ func _wind_up(delta: float) -> Vector3:
 func _wait_out_slip() -> void:
 	if not profile.adaptive or _tracking:
 		return
-	var habit := brain.memory.dodge_habit()
 	var combat := target.combat
 	var since := combat.get_dodge_age()
-	if habit == PatternMemory.NO_HABIT or since > _state_time or combat.last_dodge != habit:
+	# The slip in progress is already in the memory: it has to be the third of its kind.
+	if since > _state_time or not brain.memory.is_dodge_repeating():
 		return
 	_windup_time = maxf(_windup_time, _state_time + CombatController.IFRAME_TIME - since + 0.06)
 	_tracking = true
@@ -520,10 +531,13 @@ func _land() -> void:
 	strike.knockback = _move["knockback"]
 	strike.finisher = _finisher
 	strike.direction = toward
+	strike.reach = reach_of(_move_kind)
 	var in_reach := distance <= reach_of(_move_kind) and (-global_transform.basis.z).angle_to(toward) <= STRIKE_CONE
 	target.combat.receive_strike(strike, in_reach)
 	brain.on_strike_landed(strike)
-
+	if state != State.STRIKE:
+		# That was the knockout: the fighter is already celebrating.
+		return
 	var recover: float = _move["recover"]
 	recover *= style.recovery
 	match strike.outcome:
@@ -759,15 +773,17 @@ func _on_struck(strike: Strike) -> void:
 		if body:
 			chin.note_body_hit()
 		result = chin.take(_jolt(strike), strike.heavy)
+	# Caught clean on the way in with nothing left in the tank: floored on the spot.
+	var spent := strike.counter_hit and stamina < profile.max_stamina * TIRED
+	if spent:
+		result = ChinGauge.Result.KNOCKDOWN
 	if result == ChinGauge.Result.KNOCKDOWN:
 		knockdowns += 1
-	# Caught clean on the way in with nothing left in the tank.
-	var spent := strike.counter_hit and is_tired()
-	if health <= 0.0 or spent or knockdowns >= MAX_KNOCKDOWNS:
+	if health <= 0.0 or knockdowns >= MAX_KNOCKDOWNS:
 		finish = &"ko" if health <= 0.0 else (&"counter" if spent else &"knockdowns")
 		strike.outcome = Strike.Outcome.KNOCKOUT
 		strike.knockdown = true
-		_go_out(strike)
+		_go_out(strike, result == ChinGauge.Result.KNOCKDOWN)
 		return
 	if result == ChinGauge.Result.KNOCKDOWN:
 		strike.knockdown = true
@@ -814,7 +830,7 @@ func _jolt(strike: Strike) -> float:
 	elif strike.counter or strike.combo == Strike.KO_FINISHER:
 		jolt *= 1.5
 	if strike.setup:
-		jolt *= 1.6
+		jolt *= ChinGauge.SETUP_JOLT
 	return jolt
 
 
@@ -861,11 +877,11 @@ func _go_down(strike: Strike) -> void:
 
 
 ## Stopped for good.
-func _go_out(strike: Strike) -> void:
+func _go_out(strike: Strike, floored: bool) -> void:
 	_fall(strike)
 	collision_shape.set_deferred(&"disabled", true)
 	_enter(State.OUT)
-	if strike.knockdown and finish == &"knockdowns":
+	if floored:
 		knocked_down.emit(knockdowns)
 	defeated.emit()
 
@@ -1035,6 +1051,7 @@ func _show_cue(text: String, color: Color) -> void:
 	telegraph.modulate = color
 	telegraph.visible = true
 	telegraph.pixel_size = CUE_SIZE * 0.4
+	cue_changed.emit(text, color)
 	if _cue_tween != null:
 		_cue_tween.kill()
 	_cue_tween = create_tween()
@@ -1042,6 +1059,8 @@ func _show_cue(text: String, color: Color) -> void:
 
 
 func _hide_cue() -> void:
+	if telegraph.visible:
+		cue_changed.emit("", Color.WHITE)
 	telegraph.visible = false
 	for i in 2:
 		_glow(i, 0.0)

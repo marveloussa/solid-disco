@@ -18,8 +18,9 @@ const DECAY_RATE := 0.22
 const CHIN_SHARE := 0.5
 ## Stagger a fighter carries out of a rocked spell they survived.
 const RECOVERED := 0.35
-## A head shot this soon after a clean body shot is a set-up.
+## A head shot this soon after a clean body shot is a set-up, which shakes the chin this much more.
 const SETUP_WINDOW := 1.2
+const SETUP_JOLT := 1.6
 
 var maximum := 60.0
 var stagger := 0.0

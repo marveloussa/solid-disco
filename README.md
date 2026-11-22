@@ -52,7 +52,7 @@ Walk up to a heavy bag or into the cage and the hands come up with the gloves on
 | `F` / middle mouse | Front push kick to the body; a knee when chest to chest. Pushes back and drains stamina |
 | `Shift`, or `LMB` + `RMB` held together | High guard: stops head shots for 80% less damage, costs stamina. The body is open |
 | `Ctrl` + `Shift` | Body guard: stops body shots the same way. The head is open |
-| Tap `Shift` within 0.15 s of starting a punch | Feint: the punch is pulled back and its stamina refunded |
+| Tap `Shift` within 0.15 s of starting a punch, before it lands | Feint: the punch is pulled back and its stamina refunded. A jab is home in 0.09 s, so feint off the cross, the hooks and the overhand |
 | `A` / `D` / `S` + `Space` | Slip left, right or back (`Space` alone slips back) |
 | `Space` / `F` in a clinch | Break the grip: mash, or time one press with the knee coming up |
 | `E` at the terminal | Fight Card / Enter Ring |
@@ -114,12 +114,12 @@ vignette and makes the forearms steam.
 ## How fighting works
 
 Bouts are short and decided by clean, timed strikes rather than by trading into a health bar. Health pools
-are small, every strike is aimed at a level, and a bout can end three ways: the health bar, two knockdowns,
-or one clean counter on a fighter with nothing left in the tank.
+are small, every strike is aimed at a level, and a bout ends on the health bar or on the second knockdown.
+A fighter with nothing left in the tank who walks onto a clean counter is floored on the spot.
 
 - **Stats carry upstairs.** `Strength` and `MuscleArms` scale punch damage and how fast a guard breaks;
   `MuscleLegs` scales kicks, slip speed and footwork; level, `MuscleTorso` and `MaxStamina` set the health
-  bar for a bout (100 for a rookie); level and `MuscleTorso` add a little chin (60 for a rookie). Timing
+  bar for a bout (140 for a rookie); level and `MuscleTorso` add a little chin (60 for a rookie). Timing
   windows, bonuses and composure are flat, so skill beats stats.
 - **Head and body.** Every strike goes to one level and every guard covers one level. The HUD names the
   opponent's guard (`HIGH GUARD`, `BODY GUARD`, `NO GUARD`): hit the other one. Body shots do about half
@@ -131,8 +131,9 @@ or one clean counter on a fighter with nothing left in the tank.
   and unbreakable for 2 s, so nobody is stun-locked.
 - **Stamina gates everything.** Every strike, slip and second behind the guard costs stamina. Run dry and
   punches come out at 60% speed and 55% power, and the guard drops until a quarter of the bar is back.
-  Under 20% you are one mistake from a knockout: get hit clean while your own punch is on its way and the
-  bout is over. The same goes for opponents: empty the tank downstairs, then beat them to the punch.
+  Under 20% you are one mistake from the canvas: get hit clean while your own punch is on its way and it
+  is a knockdown, whatever the chin gauge says; you get up with half a tank, and the second knockdown ends
+  the bout. The same goes for opponents: empty the tank downstairs, then beat them to the punch.
 - **Anti-spam.** Three strikes in a row are free. From the fourth without a pause they are arm punches:
   x1.45 slower, double the stamina, 65% of the damage, no combos, no intercepts, and every opponent slips
   them and counters. A 0.4 s breath, a step of half a metre, a slip, the guard or a feint resets the count.
@@ -146,8 +147,9 @@ or one clean counter on a fighter with nothing left in the tank.
 - **Opponents telegraph.** A cue pops over the head and the glove glows for the whole wind-up, never shorter
   than 0.28 s: `!` a light head strike, `!!` a heavy one (hooks and overhands also swoosh), `LOW` a body
   shot (he dips first), `GRAB` a clinch attempt, `!!!` an explosive burst (a tense crouch and a sharp
-  exhale). A feint shows the cue with **no glow on the glove**. Block the right level, slip it, step out, or
-  hit first.
+  exhale). A feint shows the cue with **no glow on the glove**. The cue is repeated on the HUD under the
+  bout clock, because up close his head is out of the top of the view. Block the right level, slip it, step
+  out, or hit first.
 - **Clinch.** A grab that closes holds you chest to chest for up to three knees to the body that cannot be
   blocked. Mash `Space` or `F` to fill the break bar, or press once as a knee comes up (the prompt flashes)
   for half the bar. Breaking out shoves him off, staggered. Slipping the grab makes him stumble past.
@@ -157,11 +159,11 @@ or one clean counter on a fighter with nothing left in the tank.
 
   | Tier | Fighter | Style | Health | How he fights | How to beat him |
   | --- | --- | --- | --- | --- | --- |
-  | 1 | Skinny Sam (Lvl 1) | The Noob | 150 | Wide looping hooks with long wind-ups, hands at his waist after every swing, awkward pauses, no gas tank | Make him miss and hit him, intercept the wind-up, go under his high guard |
-  | 2 | Cardio Carl (Lvl 3) | Pressure Fighter | 220 | Cuts off the cage and throws three and four punch flurries that eat the stamina of a static guard | Step off the line, beat him to the punch, rip the body |
+  | 1 | Skinny Sam (Lvl 1) | The Noob | 310 | Wide looping hooks with long wind-ups, hands at his waist after every swing, awkward pauses, no gas tank | Make him miss and hit him, intercept the wind-up, go under his high guard |
+  | 2 | Cardio Carl (Lvl 3) | Pressure Fighter | 350 | Cuts off the cage and throws three and four punch flurries that eat the stamina of a static guard | Step off the line, beat him to the punch, rip the body |
   | 3 | Counter-King Viktor (Lvl 6) | Sniper | 300 | Holds the end of a long reach, feints six leads in ten, slips and threads a straight through | Watch the glove, feint him back, do not whiff |
-  | 4 | Brawler Boris (Lvl 10) | Dirty Boxer | 440 | Walks inside, rips the body to empty your tank, grabs the clinch for knees | Guard low, hit him on the way in, break the grip |
-  | 5 | The Iron Champ (Lvl 15, Gym Boss) | The Pro | 520 | Calm for 4 to 8 s, then head-body-head in a blink, and he reads your habits | Intercept the crouch, change levels, never throw the same thing three times |
+  | 4 | Brawler Boris (Lvl 10) | Dirty Boxer | 520 | Walks inside, rips the body to empty your tank, grabs the clinch for knees | Guard low, hit him on the way in, break the grip |
+  | 5 | The Iron Champ (Lvl 15, Gym Boss) | The Pro | 630 | Calm for 4 to 8 s, then head-body-head in a blink, and he reads your habits | Intercept the crouch, change levels, never throw the same thing three times |
 
 - **Adaptive opponents** (the Champ and every league challenger) remember your last five combinations and
   slips. Throw the same combination twice and the third is `READ!`: slipped, and answered with a counter that
@@ -171,7 +173,7 @@ or one clean counter on a fighter with nothing left in the tank.
 - **Endless Championship League** opens when the Champ falls: a seeded challenger for every level from
   16 up, with a random name, build and colours. Each is an adaptive Pro-tier hybrid that switches between
   two styles every 5 to 8 s (Sniper-Pressure, Dirty-Pro, Pressure-Dirty, Pro-Sniper). Health only creeps up,
-  by 10 a level from 530; what climbs is the fight IQ: shorter wind-ups (never under 0.28 s) and
+  by 14 a level from 714; what climbs is the fight IQ: shorter wind-ups (never under 0.28 s) and
   recoveries, better reads of levels and feints and more counters, at their sharpest from level 31.
 - **Winning** pays the purse plus bonuses (win streak 10% a win up to 50%, flawless 25%, 5% for every
   perfect counter and every intercept counter, 10% for every knockdown), large XP and three days of tenure,
@@ -182,25 +184,31 @@ or one clean counter on a fighter with nothing left in the tank.
   the canvas on a knockdown and is dragged onto the opponent in a clinch; a red vignette when hit, floating
   callouts (`INTERCEPT COUNTER!`, `LEVEL CHANGE!`, `ROCKED!`, `KNOCKDOWN!`) and a slow-motion finish.
 
-**Bout length.** Tuned with a scripted player driving the real scene, 20 bouts per cell, with a build that
-matches each opponent's tier. "Novice" reacts in 0.34 to 0.5 s, picks the right guard 60% of the time and
-never feints or intercepts; "average" reacts in 0.24 to 0.36 s and uses every tool some of the time;
-"skilled" reacts in 0.17 to 0.25 s. Median bout, with wins out of 20 in brackets:
+**Bout length and difficulty.** Tuned with a scripted player that reads the tells and presses the real
+inputs in the real scene (`tests/combat/`), 20 bouts per cell, with the build a career has at each
+opponent's level (league challengers are met with the body that beat the boss). "Novice" reacts in 0.34
+to 0.5 s, picks the right guard 60% of the time, sometimes keeps swinging and never feints or intercepts;
+"average" reacts in 0.24 to 0.36 s and uses every tool some of the time; "skilled" reacts in 0.17 to
+0.25 s. Median bout, with wins out of 20 in brackets:
 
 | Opponent | Novice | Average | Skilled |
 | --- | --- | --- | --- |
-| Skinny Sam | 21 s (20) | 17 s (20) | 19 s (20) |
-| Cardio Carl | 40 s (9) | 42 s (19) | 20 s (19) |
-| Counter-King Viktor | 59 s (1) | 60 s (19) | 35 s (20) |
-| Brawler Boris | 32 s (2) | 44 s (18) | 27 s (20) |
-| The Iron Champ | 37 s (0) | 58 s (6) | 45 s (18) |
-| League, levels 16, 20 and 28 | 25 to 35 s (0) | 49 to 60 s (8 to 15) | 35 s (16 to 19) |
+| Skinny Sam | 45 s (19) | 54 s (20) | 49 s (20) |
+| Cardio Carl | 35 s (9) | 44 s (20) | 43 s (20) |
+| Counter-King Viktor | 56 s (12) | 59 s (20) | 51 s (20) |
+| Brawler Boris | 51 s (12) | 47 s (20) | 43 s (20) |
+| The Iron Champ | 57 s (8) | 52 s (20) | 40 s (20) |
+| League, levels 16, 20 and 28 | 47 to 58 s (2 to 11) | 48 to 55 s (20) | 36 to 48 s (19 to 20) |
 
-Sam is a warm-up. From Carl up, a player who uses the tools has bouts of 40 to 60 s (the longest ran to
-about 100 s) and an expert finishes sooner. A player who only walks forward and punches stops winning at
-tier 3 until the technique or the stats catch up: one tier of extra training lifts the novice from one win
-in twenty over Viktor to about one in three, two tiers to nearly every bout. Button mashing is knocked out
-by everyone within a few seconds.
+Bouts run 40 to 60 s at every tier and the longest of the 480 took 90 s; the two cells under 40 s are the
+novice losing to Carl and the expert against one league challenger. A player who uses the tools wins, and
+one who only guards and trades wins about half of the time from Carl up, most often losing to two
+knockdowns rather than to the health bar. One tier of extra training downstairs lifts that player to 13 to
+19 wins in 20 against the same opponents. Pure button mashing (no guard, no pauses) loses to every ladder
+fighter, Sam included, on two knockdowns inside 10 to 15 s. These are scripts, not people: the numbers
+order the opponents and catch regressions, they do not say how the fights feel.
+
+To re-run a cell or the whole table (about 15 minutes), see `tests/README.md`.
 
 ## The living gym
 
@@ -226,7 +234,9 @@ by everyone within a few seconds.
 
 There are no audio files. `AudioManager` synthesizes twenty-nine effects and a four-bar beat on a worker thread
 at start-up (about half a second) from sine and triangle pitch drops, filtered noise bursts and ringing
-partials, and plays them through two `AudioStreamGenerator` streams.
+partials, and plays them through two `AudioStreamGenerator` streams. Pitch-shifted effects are read
+between samples, and a limiter on the master bus keeps a heavy hit, a crunch and the crowd landing on the
+same frame from clipping.
 
 - **Gym:** plate clanks when a bar is lifted off, racked or dropped, a click per plate when changing the
   load, a tick per rep (two notes for a perfect rep), a crunch and warning buzz on injury and overload, a
@@ -586,7 +596,7 @@ Read these directly from the `PlayerStats` autoload:
 | `level`, `xp`, `rank_title`, `gym_tenure` | Progress; `get_profile_title()` gives "Gym Regular \| 4 Days", `get_overhead_tag()` gives "LVL 3 \| Gym Regular \| 4 Days" |
 | `fight_record` | A `FightRecord`: `wins`, `losses`, `win_streak`, `best_streak`, `total()`, `to_text()` gives "3 W - 1 L" |
 | `ladder_progress`, `league_wins` | Ladder fighters beaten (0 to 5) and Endless League challengers beaten |
-| `get_max_health()`, `get_chin()` | Health bar and chin gauge for a bout: 100 and 60 for a rookie, growing with level and `muscle_torso` |
+| `get_max_health()`, `get_chin()` | Health bar and chin gauge for a bout: 140 and 60 for a rookie, growing with level and `muscle_torso` |
 | `strength` | Roughly the safe bench press in kg; `get_effective_strength()` applies strain, fatigue and pre-workout |
 | `stamina`, `max_stamina`, `is_exhausted` | `spend_stamina(amount)` returns false when exhausted |
 | `muscle_arms`, `muscle_torso`, `muscle_legs` | 0 to 100; `get_muscle_visual(group)` gives 0 to 1 for models |
@@ -614,7 +624,9 @@ Extension points:
 
 ## Final checklist
 
-Checked on Godot 4.4.1 and 4.7.2 by scripted play of the real scene:
+Checked on Godot 4.4.1 and 4.7.2 by scripted play of the real scene. The scripts are in `tests/` (see
+`tests/README.md`): 498 walkthrough checks for Steps 1 to 4, 665 fight-rule checks for Step 5, a bout
+simulator for the balance table above, a sound measurement and a screenshot tour.
 
 - [x] **Step 1** Start at the house, mount the bike, ride to the beacon, walk into the three-storey gym.
 - [x] **Step 2** Use a station, bank reps into muscle, strength, XP and pump; strain and recover.
@@ -627,7 +639,7 @@ Checked on Godot 4.4.1 and 4.7.2 by scripted play of the real scene:
 - [x] **Step 5** (Godot 4.4.1, headless, scripted) Head and body strikes against the high and the body
   guard, both ways; guard breaks; feints that are bitten on and seen through; intercept and perfect
   counters; the anti-spam limit; the chin gauge, rocked spells, knockdowns and the two-knockdown stoppage
-  for both fighters; the knockout of a gassed fighter; the clinch, its knees and all three ways out; every
+  for both fighters; the knockdown of a gassed fighter; the clinch, its knees and all three ways out; every
   tell and the 0.28 s wind-up floor across all styles; adaptive reads of repeated combinations and slips;
   hybrid style switches; HUD gauges, dots, callouts and result lines; purse bonuses; ten new sounds; a
   Step 4 save loading unchanged.
@@ -645,3 +657,5 @@ Project → Export → Windows Desktop → Export Project. From a shell:
 ```
 godot --headless --path . --export-release "Windows Desktop" build/IronTemple.exe
 ```
+
+The preset leaves `tests/` out of the build.

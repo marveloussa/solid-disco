@@ -91,10 +91,10 @@ static func league_challenger(level: int) -> FighterProfile:
 	fighter.blurb = _HYBRID_BLURBS[mix]
 
 	# Pro-tier numbers that creep up slowly; the real climb is in the timing windows.
-	fighter.max_health = 520.0 + 10.0 * tier
+	fighter.max_health = 700.0 + 14.0 * tier
 	fighter.max_stamina = 240.0 + 5.0 * tier
 	fighter.stamina_regen = 7.0
-	fighter.damage = minf(12.5 + 0.2 * tier, 16.5)
+	fighter.damage = minf(7.6 + 0.14 * tier, 10.5)
 	fighter.chin = minf(95.0 + 1.5 * tier, 135.0)
 	fighter.guard_max = 190.0 + 4.0 * tier
 	fighter.guard_regen = 20.0
@@ -130,12 +130,12 @@ static func _sam() -> FighterProfile:
 	fighter.rank = "Skinny Rookie"
 	fighter.tenure = "First Week"
 	fighter.blurb = "The Noob. Wide looping hooks you can see coming, then his hands drop and he runs out of breath. Make him miss and hit him."
-	fighter.max_health = 150.0
-	fighter.max_stamina = 80.0
-	fighter.stamina_regen = 3.5
+	fighter.max_health = 310.0
+	fighter.max_stamina = 95.0
+	fighter.stamina_regen = 4.5
 	fighter.damage = 5.0
-	fighter.chin = 50.0
-	fighter.guard_max = 60.0
+	fighter.chin = 60.0
+	fighter.guard_max = 120.0
 	fighter.guard_regen = 8.0
 	fighter.composure = 0.3
 	fighter.style = FightStyle.make(FightStyle.Archetype.NOOB)
@@ -161,10 +161,10 @@ static func _carl() -> FighterProfile:
 	fighter.rank = "Gym Regular"
 	fighter.tenure = "2 Months"
 	fighter.blurb = "Pressure Fighter. Marches you onto the fence behind four-punch flurries that eat a static guard. Step off the line and beat him to the punch."
-	fighter.max_health = 220.0
+	fighter.max_health = 350.0
 	fighter.max_stamina = 170.0
 	fighter.stamina_regen = 9.0
-	fighter.damage = 4.0
+	fighter.damage = 3.5
 	fighter.chin = 55.0
 	fighter.guard_max = 80.0
 	fighter.guard_regen = 14.0
@@ -197,7 +197,7 @@ static func _viktor() -> FighterProfile:
 	fighter.max_health = 300.0
 	fighter.max_stamina = 150.0
 	fighter.stamina_regen = 9.0
-	fighter.damage = 7.0
+	fighter.damage = 5.0
 	fighter.chin = 62.0
 	fighter.guard_max = 100.0
 	fighter.guard_regen = 20.0
@@ -224,10 +224,10 @@ static func _boris() -> FighterProfile:
 	fighter.rank = "Shredded Prospect"
 	fighter.tenure = "1 Year"
 	fighter.blurb = "Dirty Boxer. Walks inside, rips the body until your tank is empty and grabs the clinch for knees. Guard low, keep him off you, break the grip."
-	fighter.max_health = 440.0
+	fighter.max_health = 520.0
 	fighter.max_stamina = 190.0
 	fighter.stamina_regen = 8.0
-	fighter.damage = 11.0
+	fighter.damage = 6.0
 	fighter.chin = 80.0
 	fighter.guard_max = 170.0
 	fighter.guard_regen = 20.0
@@ -254,10 +254,10 @@ static func _champ() -> FighterProfile:
 	fighter.rank = "Gym Boss"
 	fighter.tenure = "3 Years"
 	fighter.blurb = "The Pro. Calm for a few seconds, then head-body-head in a blink, and he remembers your habits. Feint, go downstairs, never throw the same thing three times."
-	fighter.max_health = 520.0
+	fighter.max_health = 630.0
 	fighter.max_stamina = 240.0
 	fighter.stamina_regen = 7.0
-	fighter.damage = 12.5
+	fighter.damage = 7.6
 	fighter.chin = 95.0
 	fighter.guard_max = 190.0
 	fighter.guard_regen = 24.0

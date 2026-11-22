@@ -160,7 +160,7 @@ static func _noob(style: FightStyle) -> void:
 	style.hesitation = 0.35
 	style.hands_down = 1.2
 	style.guard_uptime = 0.85
-	style.block_power = 0.65
+	style.block_power = 0.75
 	style.block_reaction = 0.7
 	style.counter_move = Strike.HOOK
 	style.stagger_power = 0.7

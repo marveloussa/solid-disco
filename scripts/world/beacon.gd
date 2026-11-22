@@ -20,6 +20,8 @@ var _gem: Node3D
 
 func _ready() -> void:
 	add_to_group(&"waypoint")
+	# Animated every rendered frame, so there is nothing for physics interpolation to smooth.
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	var hot := Color(color.r * 1.7, color.g * 1.7, color.b * 1.7)
 	_no_shadow(Build.cyl(self, 0.7, beam_height, Vector3(0.0, beam_height * 0.5, 0.0), _beam_material(hot, 0.95), false, Vector3.ZERO, 0.45))
 	_no_shadow(Build.cyl(self, 2.0, beam_height, Vector3(0.0, beam_height * 0.5, 0.0), _beam_material(hot, 0.2), false, Vector3.ZERO, 1.4))
