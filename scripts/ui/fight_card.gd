@@ -108,6 +108,7 @@ func _select(index: int) -> void:
 	var gap := profile.level - PlayerStats.level
 	var odds := "Even match" if absi(gap) <= 1 else ("You outlevel them by %d" % -gap if gap < 0 else "%d levels above you" % gap)
 	_facts.add_child(UiKit.row("Your level", "Lvl %d   %s" % [PlayerStats.level, odds], UiKit.BAD if gap > 2 else UiKit.WHITE))
+	_facts.add_child(UiKit.row("Style", profile.get_style_title() + ("   adaptive" if profile.adaptive else "") if unlocked else "?", UiKit.ACCENT))
 	_facts.add_child(UiKit.row("Health", str(roundi(profile.max_health))))
 	_facts.add_child(UiKit.row("Purse" + ("  (rematch)" if beaten else ""), PlayerStats.format_cash(roundi(profile.cash * share)), UiKit.GOLD))
 	_facts.add_child(UiKit.row("Experience", "+%d XP" % roundi(profile.xp * share), UiKit.ACCENT))
@@ -118,7 +119,7 @@ func _select(index: int) -> void:
 
 func _lock_reason(profile: FighterProfile) -> String:
 	if profile.is_league():
-		return "Opens when The Iron Champ falls. Endless challengers, level 16 and up, each stronger and richer than the last."
+		return "Opens when The Iron Champ falls. Endless Pro-tier challengers, level 16 and up, each mixing two styles, remembering your habits and reading you a little faster than the last."
 	return "Locked. Beat %s first." % _entries[profile.ladder_index - 1].fighter_name
 
 
