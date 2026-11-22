@@ -172,7 +172,8 @@ A fighter with nothing left in the tank who walks onto a clean counter is floore
   everything and go to the body of one who blocks everything.
 - **Endless Championship League** opens when the Champ falls: a seeded challenger for every level from
   16 up, with a random name, build and colours. Each is an adaptive Pro-tier hybrid that switches between
-  two styles every 5 to 8 s (Sniper-Pressure, Dirty-Pro, Pressure-Dirty, Pro-Sniper). Health only creeps up,
+  two styles every 5 to 8 s, at the first moment he is free, so never in the middle of an attack
+  (Sniper-Pressure, Dirty-Pro, Pressure-Dirty, Pro-Sniper). Health only creeps up,
   by 14 a level from 714; what climbs is the fight IQ: shorter wind-ups (never under 0.28 s) and
   recoveries, better reads of levels and feints and more counters, at their sharpest from level 31.
 - **Winning** pays the purse plus bonuses (win streak 10% a win up to 50%, flawless 25%, 5% for every
