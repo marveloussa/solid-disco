@@ -89,6 +89,9 @@ const TIRED_RISK_FACTOR := 1.6
 const FIGHT_BASE_STRENGTH := 20.0
 const BASE_HEALTH := 100.0
 const HEALTH_PER_LEVEL := 5.0
+## Composure a rookie brings to a bout: the chin gauge clean hits have to fill to rock them.
+const BASE_CHIN := 60.0
+const CHIN_PER_LEVEL := 1.0
 ## Strike speed while strained, and with an empty stamina bar.
 const STRAIN_FIGHT_SPEED := 0.72
 const GASSED_FIGHT_SPEED := 0.6
@@ -504,6 +507,12 @@ func get_fight_speed() -> float:
 ## Health for a bout: levels, a thick torso and a deep gas tank all take more punishment.
 func get_max_health() -> float:
 	return BASE_HEALTH + HEALTH_PER_LEVEL * (level - 1) + 0.5 * muscle_torso + 0.15 * (max_stamina - 100.0)
+
+
+## Size of the chin gauge for a bout. Grows only a little with level and torso: a good chin
+## helps, but not getting hit clean is what keeps a fighter standing.
+func get_chin() -> float:
+	return BASE_CHIN + CHIN_PER_LEVEL * (level - 1) + 0.15 * muscle_torso
 
 
 ## Pays out one clean strike on a heavy bag: a little XP, conditioning and muscle. `power` is
