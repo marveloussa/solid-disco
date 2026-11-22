@@ -2,12 +2,12 @@ class_name PatternMemory
 extends RefCounted
 ## What the player keeps doing, as an adaptive opponent remembers it: the last few attack
 ## sequences ("LR" is jab then cross, lower case is a body shot, "f" a feint, "K" a kick) and
-## the last few slips. The same sequence twice running is a habit; so is the same slip twice.
+## the last few slips. The same sequence twice running is a habit; so is the same slip twice,
+## which the third one pays for.
 
 const DEPTH := 5
 ## Presses further apart than this belong to different sequences.
 const SEQUENCE_GAP := 0.75
-const NO_HABIT := 9
 
 ## Finished sequences, oldest first.
 var sequences: Array[String] = []
@@ -61,12 +61,10 @@ func is_repeating() -> bool:
 	return current.length() == mini(pattern.length(), 2) and pattern.begins_with(current)
 
 
-## The direction slipped twice running, or NO_HABIT.
-func dodge_habit() -> int:
+## True when the last three slips all went the same way.
+func is_dodge_repeating() -> bool:
 	var count := dodges.size()
-	if count < 2 or dodges[count - 1] != dodges[count - 2]:
-		return NO_HABIT
-	return dodges[count - 1]
+	return count >= 3 and dodges[count - 1] == dodges[count - 2] and dodges[count - 2] == dodges[count - 3]
 
 
 func forget_attacks() -> void:
