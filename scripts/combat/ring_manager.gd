@@ -256,9 +256,9 @@ func _pay_out(won: bool) -> Dictionary:
 			var bonus := roundi(purse * INTERCEPT_BONUS) * combat.bout_intercepts
 			rows.append(["Intercept counters x%d" % combat.bout_intercepts, "+" + PlayerStats.format_cash(bonus), UiKit.GOLD])
 			cash += bonus
-		if combat.bout_knockdowns > 0:
-			var bonus := roundi(purse * KNOCKDOWN_BONUS) * combat.bout_knockdowns
-			rows.append(["Knockdowns x%d" % combat.bout_knockdowns, "+" + PlayerStats.format_cash(bonus), UiKit.GOLD])
+		if opponent.knockdowns > 0:
+			var bonus := roundi(purse * KNOCKDOWN_BONUS) * opponent.knockdowns
+			rows.append(["Knockdowns x%d" % opponent.knockdowns, "+" + PlayerStats.format_cash(bonus), UiKit.GOLD])
 			cash += bonus
 		xp = profile.xp * share
 		if not rematch_fight:
