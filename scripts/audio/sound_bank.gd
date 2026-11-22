@@ -34,6 +34,17 @@ static func render_all(rate: float) -> Dictionary:
 		&"bell": _bell(rate, rng),
 		&"count": _count(rate),
 		&"crowd": _crowd(rate, rng),
+		# Technical combat: impacts, and the tell that goes with each dangerous move.
+		&"counter_crunch": _counter_crunch(rate, rng),
+		&"body_hit": _body_hit(rate, rng),
+		&"knockdown": _knockdown(rate, rng),
+		&"rocked": _rocked(rate),
+		&"feint": _feint(rate, rng),
+		&"swoosh": _swoosh(rate, rng),
+		&"dip": _dip(rate, rng),
+		&"lunge": _lunge(rate, rng),
+		&"grab": _grab(rate, rng),
+		&"exhale": _exhale(rate, rng),
 	}
 
 
@@ -197,3 +208,89 @@ static func _crowd(rate: float, rng: RandomNumberGenerator) -> PackedVector2Arra
 		var t := i / rate
 		out[i] *= 0.72 + 0.16 * sin(t * 41.0) + 0.12 * sin(t * 67.0 + 1.3)
 	return Synth.finish(out, 0.6)
+
+
+## An intercept counter landing flush: a crack, a spray of crunching grains and a deep thump.
+static func _counter_crunch(rate: float, rng: RandomNumberGenerator) -> PackedVector2Array:
+	var out := Synth.buffer(rate, 0.42)
+	Synth.noise(out, rate, rng, 0.0, 0.03, 1.0, 120.0, 6500.0, 1800.0)
+	for i in 7:
+		Synth.noise(out, rate, rng, rng.randf_range(0.005, 0.11), 0.025, rng.randf_range(0.5, 0.9), 130.0, 2200.0, 500.0)
+	Synth.tone(out, rate, 0.0, 0.4, 130.0, 34.0, 1.0, 9.0)
+	Synth.tone(out, rate, 0.0, 0.1, 900.0, 240.0, 0.35, 45.0, TRI)
+	return Synth.finish(out, 0.95, 2.4)
+
+
+## A fist sinking into the body: a low, dull thud and the air going out.
+static func _body_hit(rate: float, rng: RandomNumberGenerator) -> PackedVector2Array:
+	var out := Synth.buffer(rate, 0.32)
+	Synth.tone(out, rate, 0.0, 0.3, 110.0, 44.0, 1.0, 12.0)
+	Synth.noise(out, rate, rng, 0.0, 0.06, 0.8, 60.0, 700.0)
+	Synth.noise(out, rate, rng, 0.03, 0.2, 0.3, 14.0, 1600.0, 500.0, 0.02)
+	return Synth.finish(out, 0.85, 1.8)
+
+
+## A body meeting the canvas: two heavy thumps, shoulders then hips.
+static func _knockdown(rate: float, rng: RandomNumberGenerator) -> PackedVector2Array:
+	var out := Synth.buffer(rate, 0.5)
+	Synth.tone(out, rate, 0.0, 0.3, 90.0, 36.0, 1.0, 10.0)
+	Synth.noise(out, rate, rng, 0.0, 0.1, 0.7, 40.0, 500.0)
+	Synth.tone(out, rate, 0.13, 0.3, 70.0, 32.0, 0.7, 9.0)
+	Synth.noise(out, rate, rng, 0.13, 0.12, 0.5, 30.0, 400.0)
+	return Synth.finish(out, 0.9, 1.8)
+
+
+## Ears ringing: two high tones beating against each other over a slow, queasy sub.
+static func _rocked(rate: float) -> PackedVector2Array:
+	var out := Synth.buffer(rate, 1.4)
+	Synth.tone(out, rate, 0.0, 1.38, 3150.0, 3060.0, 0.35, 2.6, S, 0.02)
+	Synth.tone(out, rate, 0.0, 1.3, 3163.0, 3071.0, 0.3, 2.8, S, 0.02)
+	Synth.tone(out, rate, 0.0, 0.7, 72.0, 48.0, 0.5, 5.0, S, 0.01)
+	return Synth.finish(out, 0.4)
+
+
+## A feint: the flick of a glove that goes nowhere.
+static func _feint(rate: float, rng: RandomNumberGenerator) -> PackedVector2Array:
+	var out := Synth.buffer(rate, 0.07)
+	Synth.noise(out, rate, rng, 0.0, 0.06, 1.0, 70.0, 6000.0, 2200.0)
+	return Synth.finish(out, 0.25)
+
+
+## Tell of an overhand or power hook: the shoulder turning away, a soft rising rush of air.
+static func _swoosh(rate: float, rng: RandomNumberGenerator) -> PackedVector2Array:
+	var out := Synth.buffer(rate, 0.36)
+	Synth.sweep(out, rate, rng, 0.0, 0.34, 1.0, 240.0, 1500.0)
+	return Synth.finish(out, 0.3)
+
+
+## Tell of a body shot: the level dropping, a short falling note.
+static func _dip(rate: float, rng: RandomNumberGenerator) -> PackedVector2Array:
+	var out := Synth.buffer(rate, 0.16)
+	Synth.tone(out, rate, 0.0, 0.15, 330.0, 150.0, 0.8, 16.0, S, 0.006)
+	Synth.noise(out, rate, rng, 0.0, 0.1, 0.25, 24.0, 900.0)
+	return Synth.finish(out, 0.4)
+
+
+## Tell of a clinch attempt: the lead foot stamping in and the rush of both arms.
+static func _lunge(rate: float, rng: RandomNumberGenerator) -> PackedVector2Array:
+	var out := Synth.buffer(rate, 0.26)
+	Synth.tone(out, rate, 0.0, 0.16, 110.0, 55.0, 1.0, 18.0)
+	Synth.noise(out, rate, rng, 0.0, 0.12, 0.6, 20.0, 900.0)
+	Synth.sweep(out, rate, rng, 0.02, 0.22, 0.6, 400.0, 1800.0)
+	return Synth.finish(out, 0.55)
+
+
+## The clinch closing: bodies meeting and gloves rustling round the neck.
+static func _grab(rate: float, rng: RandomNumberGenerator) -> PackedVector2Array:
+	var out := Synth.buffer(rate, 0.24)
+	Synth.tone(out, rate, 0.0, 0.2, 140.0, 60.0, 0.9, 15.0)
+	Synth.noise(out, rate, rng, 0.0, 0.18, 0.8, 14.0, 1800.0, 300.0)
+	return Synth.finish(out, 0.6)
+
+
+## Tell of an explosive burst: one sharp breath out through the teeth.
+static func _exhale(rate: float, rng: RandomNumberGenerator) -> PackedVector2Array:
+	var out := Synth.buffer(rate, 0.26)
+	Synth.noise(out, rate, rng, 0.0, 0.24, 1.0, 16.0, 5200.0, 1400.0, 0.012)
+	Synth.noise(out, rate, rng, 0.0, 0.1, 0.5, 30.0, 9000.0, 3500.0, 0.004)
+	return Synth.finish(out, 0.5)
