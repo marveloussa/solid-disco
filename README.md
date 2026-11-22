@@ -2,11 +2,12 @@
 
 First-person stylized Gym & MMA progression game for **Godot 4.4+** (Forward+ renderer; tested on 4.4.1 and 4.7.2).
 
-**All four steps are in**, and the game is complete: the intro street and a rideable bicycle, a three-storey
+**All five steps are in**, and the game is complete: the intro street and a rideable bicycle, a three-storey
 gym, first-floor training with stats, levelling, visible muscle growth, a pump multiplier and injuries,
-second-floor MMA with first-person striking, heavy bags, a five-fighter ladder and an endless league, and a
-living gym: regulars who react to your reputation, a supplement bar on the third floor, synthesized sound
-and music, saving, a pause menu and particle effects.
+second-floor MMA with first-person striking, heavy bags, a five-fighter ladder and an endless league, a
+living gym (regulars who react to your reputation, a supplement bar on the third floor, synthesized sound
+and music, saving, a pause menu and particle effects), and fast, technical fights: head and body targeting,
+two guards, feints, intercept counters, a chin gauge with knockdowns, the clinch and five opponent styles.
 Everything is built from Godot's primitive meshes and `StandardMaterial3D`, and every sound is synthesized
 in code, so there are no imported assets of any kind: open `project.godot` in the editor and press **F5**.
 
@@ -45,11 +46,15 @@ Walk up to a heavy bag or into the cage and the hands come up with the gloves on
 
 | Input | Action |
 | --- | --- |
-| `LMB` | Left jab. A second `LMB` straight after a jab is a left hook |
-| `RMB` | Right cross. A second `RMB` straight after a cross is a right overhand |
-| `F` / middle mouse | Front push kick; a knee to the body when chest to chest. Pushes back and drains stamina |
-| `Shift`, or `LMB` + `RMB` held together | Tight guard: 80% less damage, costs stamina |
+| `LMB` | Left jab to the head. A second `LMB` straight after a jab is a left hook |
+| `RMB` | Right cross to the head. A second `RMB` straight after a cross is a right overhand |
+| `Ctrl` (or `C`) + `LMB` / `RMB` | Body shots: liver hook and body cross. Less damage, but they drain the opponent's stamina |
+| `F` / middle mouse | Front push kick to the body; a knee when chest to chest. Pushes back and drains stamina |
+| `Shift`, or `LMB` + `RMB` held together | High guard: stops head shots for 80% less damage, costs stamina. The body is open |
+| `Ctrl` + `Shift` | Body guard: stops body shots the same way. The head is open |
+| Tap `Shift` within 0.15 s of starting a punch | Feint: the punch is pulled back and its stamina refunded |
 | `A` / `D` / `S` + `Space` | Slip left, right or back (`Space` alone slips back) |
+| `Space` / `F` in a clinch | Break the grip: mash, or time one press with the knee coming up |
 | `E` at the terminal | Fight Card / Enter Ring |
 
 | Combo | Buttons | Effect |
@@ -58,9 +63,18 @@ Walk up to a heavy bag or into the cage and the hands come up with the gloves on
 | Guard Breaker | `LMB` `LMB` `RMB` | Jab, hook, uppercut: shatters a raised guard and staggers |
 | KO Finisher | `RMB` `LMB` `RMB` | Cross, jab, overhand for x2 with heavy knockback and a stagger |
 
-Presses chain when they are less than 0.9 s apart; a whiff or taking a clean hit breaks the chain.
-**Perfect counter**: slip within 0.22 s of a strike landing and time slows for a quarter of a second; the
-next strike you throw does x2 damage.
+Presses chain when they are less than 0.9 s apart; a whiff or taking a clean hit breaks the chain. Body
+shots chain like any other press, but only head shots complete the named combos.
+
+| Technique | How | Reward |
+| --- | --- | --- |
+| Intercept counter | Land a clean punch while the opponent is still winding up | x2.5 damage, his attack is cancelled, a heavy jolt to his chin |
+| Perfect counter | Slip within 0.22 s of a strike landing; time slows for a quarter of a second | The next strike does x2 and staggers |
+| Level change | A head shot within 1.2 s of a clean body shot | x1.2 damage and x1.6 on his chin gauge |
+| Feint | Tap `Shift` as the punch starts | An opponent who bites is stuck with his guard or slip for 0.55 s |
+| Punish | Hit a staggered or rocked opponent | x1.25 damage |
+
+Bonuses never stack: the biggest one that applies is the one that counts.
 
 ### Supplement bar (3F)
 
