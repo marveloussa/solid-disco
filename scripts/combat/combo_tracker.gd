@@ -1,12 +1,14 @@
 class_name ComboTracker
 extends RefCounted
-## Timed chain detection for the two punch buttons. Each press is "L" or "R"; presses less than
-## WINDOW apart build a chain, and the chain decides both the strike a press throws and the
-## named combo it completes:
+## Timed chain detection for the two punch buttons. Each press is "L" or "R" for the head and
+## "l" or "r" for the body; presses less than WINDOW apart build a chain, and the chain decides
+## both the strike a press throws and the named combo it completes:
 ##
-##   L      jab         L after a jab      left hook
-##   R      cross       R after a cross    right overhand
-##   L R    1-2 Combo   L L R  Guard Breaker (uppercut)   R L R  KO Finisher (overhand)
+##   L      jab         L after a jab      left hook        l   liver hook
+##   R      cross       R after a cross    right overhand   r   body cross
+##   L R    1-2 Combo   L L R  Guard Breaker (uppercut)     R L R  KO Finisher (overhand)
+##
+## Body shots chain like any other press but only head shots complete the named combos.
 
 const WINDOW := 0.9
 const MAX_KEYS := 3
@@ -38,8 +40,12 @@ func clear() -> void:
 	_last_kind = &""
 
 
-## The strike the next press of `key` ("L" or "R") throws.
+## The strike the next press of `key` throws.
 func next_kind(key: String) -> StringName:
+	if key == "l":
+		return Strike.BODY_HOOK
+	if key == "r":
+		return Strike.BODY_CROSS
 	if key == "L":
 		return Strike.HOOK if _last_kind == Strike.JAB else Strike.JAB
 	if chain.ends_with("LL"):
