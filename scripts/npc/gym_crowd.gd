@@ -141,6 +141,7 @@ func _bind_player() -> void:
 		return
 	_player.combat.strike_resolved.connect(_on_strike_resolved)
 	_player.combat.knocked_out.connect(_on_player_down)
+	_player.combat.knocked_down.connect(func(_count: int) -> void: _on_player_down())
 	_player.combat.bout_changed.connect(_on_bout_changed)
 
 
@@ -233,8 +234,10 @@ func _on_strike_resolved(strike: Strike) -> void:
 		return
 	if strike.outcome == Strike.Outcome.KNOCKOUT:
 		_cheer(2.6, 1.0, Reputation.KO_CHEERS)
+	elif strike.knockdown:
+		_cheer(1.8, 0.85, Reputation.CHEERS)
 	elif _cheer_cooldown <= 0.0 and Reputation.tier() != Reputation.Tier.LOW:
-		var clean := strike.outcome == Strike.Outcome.HIT and (strike.heavy or strike.counter or strike.combo != &"")
+		var clean := strike.outcome == Strike.Outcome.HIT and (strike.heavy or strike.counter or strike.counter_hit or strike.combo != &"")
 		if clean or strike.outcome == Strike.Outcome.GUARD_BREAK:
 			_cheer(1.0, 0.5, Reputation.CHEERS)
 
