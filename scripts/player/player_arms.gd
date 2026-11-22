@@ -3,6 +3,9 @@ extends Node3D
 ## Procedural first-person arms. A two-bone IK solve keeps each hand on an animated target
 ## (idle breathing, walk and sprint swing) or on grips supplied by a vehicle or workout station,
 ## so a new pose only needs hand targets. `set_physique` thickens the arms as the player grows.
+##
+## The fight stance (set by CombatController) pulls MMA gloves on, raises the hands into a guard
+## and plays punches, the block and a first-person kick.
 
 const UPPER_LENGTH := 0.36
 const FOREARM_LENGTH := 0.34
@@ -14,6 +17,31 @@ const DEFAULT_SHOULDER := Vector3(0.2, -0.25, -0.05)
 const DEFAULT_POLE := Vector3(0.6, -1.0, 0.25)
 ## Distance from the wrist to the middle of the fist, so a held bar sits in the palm.
 const PALM_OFFSET := 0.055
+
+# Fight stance in view space, for the right arm; x mirrors for the left.
+const GUARD_SHOULDER := Vector3(0.2, -0.3, 0.07)
+const GUARD_HAND := Vector3(0.165, -0.16, -0.4)
+## The lead (left) hand rides a little further out.
+const GUARD_LEAD := Vector3(0.0, 0.012, -0.05)
+const GUARD_POLE := Vector3(0.45, -1.0, 0.5)
+## Forearms up in front of the face.
+const BLOCK_HAND := Vector3(0.085, -0.06, -0.29)
+const BLOCK_POLE := Vector3(0.3, -1.0, 0.35)
+## Hand path of each punch: from the guard the fist curves past `via` to `end` (beyond arm's
+## length means full extension). `follow` is how far the shoulder goes with it, `pole` aims the
+## elbow and `wind` is how far the hand draws back before it leaves.
+const STRIKE_PATHS := {
+	Strike.JAB: {"via": Vector3(0.1, -0.11, -0.6), "end": Vector3(0.015, -0.075, -0.88), "follow": Vector3(-0.07, 0.03, -0.16), "pole": Vector3(0.45, -1.0, 0.3), "wind": 0.03},
+	Strike.CROSS: {"via": Vector3(0.12, -0.1, -0.6), "end": Vector3(-0.03, -0.065, -0.92), "follow": Vector3(-0.12, 0.03, -0.24), "pole": Vector3(0.6, -0.9, 0.3), "wind": 0.07},
+	Strike.HOOK: {"via": Vector3(0.52, -0.05, -0.5), "end": Vector3(-0.16, -0.07, -0.52), "follow": Vector3(-0.05, 0.04, -0.14), "pole": Vector3(1.0, 0.05, 0.6), "wind": 0.06},
+	Strike.OVERHAND: {"via": Vector3(0.34, 0.2, -0.42), "end": Vector3(-0.06, -0.04, -0.88), "follow": Vector3(-0.1, 0.06, -0.22), "pole": Vector3(0.9, 0.5, 0.4), "wind": 0.1},
+	Strike.UPPERCUT: {"via": Vector3(0.14, -0.5, -0.42), "end": Vector3(0.02, 0.0, -0.56), "follow": Vector3(-0.06, 0.06, -0.12), "pole": Vector3(0.3, -1.0, 0.6), "wind": 0.05},
+}
+# The kicking leg swings up into view from a hip placed higher than the real one, so a front
+# kick is visible without looking down.
+const KICK_HIP := Vector3(0.09, -0.3, 0.1)
+const KICK_THIGH := 0.42
+const KICK_SHIN := 0.46
 
 ## Pulls the view model towards the near plane so the arms never clip into nearby walls.
 const VIEWMODEL_SHADER := """
@@ -34,6 +62,16 @@ void fragment() {
 
 @export var skin_color := Color(0.96, 0.76, 0.62)
 @export var sleeve_color := Color(0.16, 0.62, 0.86)
+@export var glove_color := Color(0.1, 0.1, 0.13)
+@export var glove_trim_color := Color(0.66, 0.45, 1.0)
+@export var shorts_color := Color(0.13, 0.15, 0.22)
+@export var shoe_color := Color(0.93, 0.25, 0.2)
+
+## Hands up with the gloves on. Set by CombatController.
+var fight_stance := false
+var blocking := false
+## Speeds up the fight animations when the world is in slow motion.
+var fight_time_scale := 1.0
 
 
 class Arm:
@@ -51,6 +89,12 @@ class Arm:
 	var held_axis := Vector3.RIGHT
 	var held_shoulder := Vector3.ZERO
 	var held_pole := Vector3.DOWN
+	var glove: Node3D
+	# The punch in progress, or &"".
+	var strike: StringName = &""
+	var strike_time := 0.0
+	var strike_startup := 0.1
+	var strike_recovery := 0.2
 
 
 var _arms: Array[Arm] = []
@@ -62,6 +106,21 @@ var _grip_blend := 0.0
 var _air_blend := 0.0
 var _breath := 0.0
 var _sway := Vector2.ZERO
+var _stance := 0.0
+var _block := 0.0
+var _flinch := 0.0
+# Scratch results of `_fight_arm`.
+var _fight_shoulder := Vector3.ZERO
+var _fight_hand := Vector3.ZERO
+var _fight_pole := Vector3.DOWN
+var _leg: Node3D
+var _leg_knee: Node3D
+var _leg_parts := {}
+var _legs_girth := 0.0
+var _kick: StringName = &""
+var _kick_time := 0.0
+var _kick_startup := 0.2
+var _kick_recovery := 0.4
 
 
 func _ready() -> void:
@@ -69,6 +128,8 @@ func _ready() -> void:
 	shader.code = VIEWMODEL_SHADER
 	var skin := _material(shader, skin_color)
 	var sleeve := _material(shader, sleeve_color)
+	var padding := _material(shader, glove_color)
+	var trim := _material(shader, glove_trim_color)
 	for side: float in [-1.0, 1.0]:
 		var arm := Arm.new()
 		arm.side = side
@@ -81,13 +142,23 @@ func _ready() -> void:
 		arm.elbow = _part(arm.fore, _sphere(), skin)
 		arm.elbow.position.y = -FOREARM_LENGTH * 0.5
 		arm.hand = _hand(side, skin)
+		arm.glove = _glove(arm.hand, side, padding, trim)
 		_arms.append(arm)
+	_build_leg(skin, _material(shader, shorts_color), _material(shader, shoe_color))
 	set_physique(0.0, 0.0)
 
 
 ## `arms` 0 (lanky) to 1 (shredded) sets the girth; `pump` 0 to 1 adds a temporary swell.
-func set_physique(arms: float, pump: float = 0.0) -> void:
+## `legs` thickens the kicking leg.
+func set_physique(arms: float, pump: float = 0.0, legs: float = 0.0) -> void:
 	_girth = clampf(arms, 0.0, 1.0)
+	_legs_girth = clampf(legs, 0.0, 1.0)
+	var thigh_radius := lerpf(0.05, 0.085, _legs_girth)
+	var shin_radius := lerpf(0.04, 0.052, _legs_girth)
+	(_leg_parts["thigh"] as Node3D).scale = Vector3(thigh_radius, KICK_THIGH, thigh_radius)
+	(_leg_parts["shorts"] as Node3D).scale = Vector3(thigh_radius * 1.35, KICK_THIGH * 0.55, thigh_radius * 1.35)
+	(_leg_parts["knee"] as Node3D).scale = Vector3.ONE * thigh_radius * 0.85
+	(_leg_parts["shin"] as Node3D).scale = Vector3(shin_radius, KICK_SHIN, shin_radius)
 	var swell := 1.0 + 0.1 * clampf(pump, 0.0, 1.0)
 	var upper_radius := lerpf(0.03, 0.05, _girth) * swell
 	var elbow_radius := lerpf(0.026, 0.044, _girth) * swell
@@ -119,6 +190,41 @@ func set_grips(left: Node3D, right: Node3D, shoulder: Vector3 = DEFAULT_SHOULDER
 		_pole = pole
 
 
+## Throws a punch with one arm (0 left, 1 right): the fist lands after `startup` seconds and is
+## back in the guard `recovery` seconds later.
+func play_strike(kind: StringName, arm_index: int, startup: float, recovery: float) -> void:
+	if not STRIKE_PATHS.has(kind):
+		return
+	var arm := _arms[arm_index]
+	arm.strike = kind
+	arm.strike_time = 0.0
+	arm.strike_startup = maxf(startup, 0.01)
+	arm.strike_recovery = maxf(recovery, 0.01)
+
+
+## Throws the right leg: Strike.KICK is a front kick, Strike.KNEE a knee to the body.
+func play_kick(kind: StringName, startup: float, recovery: float) -> void:
+	_kick = kind
+	_kick_time = 0.0
+	_kick_startup = maxf(startup, 0.01)
+	_kick_recovery = maxf(recovery, 0.01)
+	_leg.visible = true
+	_pose_leg(0.0)
+
+
+## Drops whatever is being thrown and brings the hands straight back to the guard.
+func cancel_strikes() -> void:
+	for arm in _arms:
+		arm.strike = &""
+	_kick = &""
+	_leg.visible = false
+
+
+## Jolts the hands when the fighter takes a hit.
+func flinch(amount: float = 1.0) -> void:
+	_flinch = clampf(maxf(_flinch, amount), 0.0, 1.0)
+
+
 ## Mouse movement makes the hands trail slightly behind the view.
 func add_sway(mouse_delta: Vector2) -> void:
 	_sway = (_sway + Vector2(-mouse_delta.x, mouse_delta.y) * 0.00012).limit_length(0.03)
@@ -131,6 +237,13 @@ func animate(delta: float, stride_phase: float, move_amount: float, sprint_amoun
 	_air_blend = move_toward(_air_blend, 1.0 if airborne else 0.0, delta * 6.0)
 	var gripping := _arms[0].grip != null or _arms[1].grip != null
 	_grip_blend = move_toward(_grip_blend, 1.0 if gripping else 0.0, delta * 4.0)
+	var fight_delta := delta * fight_time_scale
+	_stance = move_toward(_stance, 1.0 if fight_stance and not gripping else 0.0, delta * 5.5)
+	_block = move_toward(_block, 1.0 if blocking else 0.0, fight_delta * 11.0)
+	_flinch = move_toward(_flinch, 0.0, delta * 5.0)
+	if _stance <= 0.0:
+		cancel_strikes()
+	var stance := smoothstep(0.0, 1.0, _stance)
 	# Holding real geometry needs true depth so hands and equipment sort correctly.
 	var pull := 0.0 if _grip_blend > 0.0 else DEPTH_PULL
 	for material in _materials:
@@ -138,18 +251,29 @@ func animate(delta: float, stride_phase: float, move_amount: float, sprint_amoun
 
 	var blend := smoothstep(0.0, 1.0, _grip_blend)
 	var to_arm_space := global_transform.basis.inverse()
-	for arm in _arms:
+	for index in 2:
+		var arm := _arms[index]
 		var side := arm.side
+		arm.glove.visible = _stance > 0.02
 		if arm.grip != null:
 			var grip := arm.grip.get_global_transform_interpolated()
 			arm.held_hand = to_local(grip.origin)
 			arm.held_axis = (to_arm_space * grip.basis.x).normalized()
 			arm.held_shoulder = to_local(torso * Vector3(_shoulder.x * side, _shoulder.y, _shoulder.z))
 			arm.held_pole = to_arm_space * (torso.basis * Vector3(_pole.x * side, _pole.y, _pole.z))
-		var shoulder := Vector3(0.21 * side, -0.27, 0.1).lerp(arm.held_shoulder, blend)
-		var hand := _free_hand(side, stride_phase, move_amount, sprint_amount).lerp(arm.held_hand, blend)
-		var pole := Vector3(0.55 * side, -1.0, 0.1).lerp(arm.held_pole, blend)
+		var shoulder := Vector3(0.21 * side, -0.27, 0.1)
+		var hand := _free_hand(side, stride_phase, move_amount, sprint_amount)
+		var pole := Vector3(0.55 * side, -1.0, 0.1)
+		if stance > 0.0:
+			_fight_arm(arm, index, fight_delta, stride_phase, move_amount)
+			shoulder = shoulder.lerp(_fight_shoulder, stance)
+			hand = hand.lerp(_fight_hand, stance)
+			pole = pole.lerp(_fight_pole, stance)
+		shoulder = shoulder.lerp(arm.held_shoulder, blend)
+		hand = hand.lerp(arm.held_hand, blend)
+		pole = pole.lerp(arm.held_pole, blend)
 		_solve(arm, shoulder, hand, pole, side * deg_to_rad(75.0) * (1.0 - blend), blend)
+	_animate_kick(fight_delta)
 
 
 func _free_hand(side: float, phase: float, move: float, sprint: float) -> Vector3:
@@ -166,6 +290,76 @@ func _free_hand(side: float, phase: float, move: float, sprint: float) -> Vector
 	target.x += _sway.x * steady + side * (0.02 * sprint + 0.04 * _air_blend)
 	target.y += _sway.y * steady + 0.05 * _air_blend
 	return target
+
+
+## Works out one arm's guard, block or punch for this frame into the `_fight_*` scratch values.
+func _fight_arm(arm: Arm, index: int, delta: float, phase: float, move: float) -> void:
+	var side := arm.side
+	var hand := _mirrored(GUARD_HAND, side)
+	if index == 0:
+		hand += GUARD_LEAD
+	# Breathing and footwork keep the guard alive; a hit knocks it back.
+	hand.x += _sway.x
+	hand.y += sin(_breath * 1.7 + side) * 0.005 + absf(cos(phase + index * PI * 0.5)) * 0.012 * move + _sway.y - 0.05 * _flinch
+	hand.z += 0.06 * _flinch
+	var shoulder := _mirrored(GUARD_SHOULDER, side)
+	var pole := _mirrored(GUARD_POLE, side)
+	var block := smoothstep(0.0, 1.0, _block)
+	hand = hand.lerp(_mirrored(BLOCK_HAND, side), block)
+	pole = pole.lerp(_mirrored(BLOCK_POLE, side), block)
+
+	if arm.strike != &"":
+		arm.strike_time += delta
+		var path: Dictionary = STRIKE_PATHS[arm.strike]
+		var reach := 0.0
+		var drawn := 0.0
+		if arm.strike_time < arm.strike_startup:
+			var progress := arm.strike_time / arm.strike_startup
+			# Accelerates into the target so the punch snaps at the end.
+			reach = pow(progress, 1.8)
+			var wind: float = path["wind"]
+			drawn = sin(minf(progress * 2.5, 1.0) * PI) * wind
+		else:
+			var back := (arm.strike_time - arm.strike_startup) / arm.strike_recovery
+			if back >= 1.0:
+				arm.strike = &""
+			else:
+				reach = 1.0 - smoothstep(0.0, 1.0, back)
+		var via := _mirrored(path["via"], side)
+		var end := _mirrored(path["end"], side)
+		hand = hand.lerp(via, reach).lerp(via.lerp(end, reach), reach)
+		hand.z += drawn
+		shoulder += _mirrored(path["follow"], side) * reach
+		pole = pole.lerp(_mirrored(path["pole"], side), minf(reach * 1.6, 1.0))
+	_fight_shoulder = shoulder
+	_fight_hand = hand
+	_fight_pole = pole
+
+
+func _animate_kick(delta: float) -> void:
+	if _kick == &"":
+		return
+	_kick_time += delta
+	if _kick_time < _kick_startup:
+		_pose_leg(_kick_time / _kick_startup)
+		return
+	var back := (_kick_time - _kick_startup) / _kick_recovery
+	if back >= 1.0:
+		_kick = &""
+		_leg.visible = false
+	else:
+		_pose_leg(1.0 - smoothstep(0.0, 1.0, back))
+
+
+## `thrust` 0 is the leg hanging below the view, 1 the kick fully out.
+func _pose_leg(thrust: float) -> void:
+	if _kick == Strike.KNEE:
+		_leg.rotation.x = lerpf(0.3, 1.62, smoothstep(0.0, 1.0, thrust))
+		_leg_knee.rotation.x = -2.0
+	else:
+		# The knee comes up first, then the shin snaps out.
+		_leg.rotation.x = lerpf(0.3, 1.45, smoothstep(0.0, 0.6, thrust))
+		_leg_knee.rotation.x = -lerpf(1.9, 0.08, smoothstep(0.4, 1.0, thrust))
 
 
 func _solve(arm: Arm, shoulder: Vector3, target: Vector3, pole: Vector3, roll: float, hold: float) -> void:
@@ -237,6 +431,61 @@ func _hand(side: float, material: Material) -> Node3D:
 	thumb.size = Vector3(0.026, 0.06, 0.03)
 	_part(wrist, thumb, material).position = Vector3(-side * 0.048, 0.06, -0.012)
 	return wrist
+
+
+## Open-fingered MMA glove: padding over the knuckles and the back of the hand, a wrist strap.
+func _glove(hand: Node3D, side: float, padding: Material, trim: Material) -> Node3D:
+	var glove := Node3D.new()
+	hand.add_child(glove)
+	var knuckles := BoxMesh.new()
+	knuckles.size = Vector3(0.096, 0.066, 0.052)
+	_part(glove, knuckles, padding).position = Vector3(0.0, 0.1, 0.012)
+	var back := BoxMesh.new()
+	back.size = Vector3(0.09, 0.09, 0.03)
+	_part(glove, back, padding).position = Vector3(0.0, 0.045, 0.026)
+	var thumb := BoxMesh.new()
+	thumb.size = Vector3(0.034, 0.05, 0.04)
+	_part(glove, thumb, padding).position = Vector3(-side * 0.05, 0.058, -0.008)
+	_part(glove, _tube(0.037, 0.052), padding).position = Vector3(0.0, -0.012, 0.0)
+	_part(glove, _tube(0.0385, 0.014), trim).position = Vector3(0.0, -0.012, 0.0)
+	glove.visible = false
+	return glove
+
+
+## The kicking leg: thigh, knee, shin and shoe on a hip pivot, hidden until a kick is thrown.
+func _build_leg(skin: Material, shorts: Material, shoes: Material) -> void:
+	_leg = Node3D.new()
+	_leg.position = KICK_HIP
+	_leg.rotation.z = 0.06
+	add_child(_leg)
+	_leg_parts["thigh"] = _part(_leg, _tube(1.0, 1.0), skin)
+	(_leg_parts["thigh"] as Node3D).position.y = -KICK_THIGH * 0.5
+	_leg_parts["shorts"] = _part(_leg, _tube(1.0, 1.0), shorts)
+	(_leg_parts["shorts"] as Node3D).position.y = -KICK_THIGH * 0.27
+	_leg_knee = Node3D.new()
+	_leg_knee.position.y = -KICK_THIGH
+	_leg.add_child(_leg_knee)
+	_leg_parts["knee"] = _part(_leg_knee, _sphere(), skin)
+	_leg_parts["shin"] = _part(_leg_knee, _tube(1.0, 1.0), skin)
+	(_leg_parts["shin"] as Node3D).position.y = -KICK_SHIN * 0.5
+	var shoe := BoxMesh.new()
+	shoe.size = Vector3(0.1, 0.085, 0.27)
+	_part(_leg_knee, shoe, shoes).position = Vector3(0.0, -KICK_SHIN - 0.03, -0.06)
+	_leg.visible = false
+
+
+func _tube(radius: float, length: float) -> CylinderMesh:
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = radius
+	mesh.bottom_radius = radius
+	mesh.height = length
+	mesh.radial_segments = 10
+	mesh.rings = 1
+	return mesh
+
+
+static func _mirrored(point: Vector3, side: float) -> Vector3:
+	return Vector3(point.x * side, point.y, point.z)
 
 
 func _part(parent: Node3D, mesh: Mesh, material: Material) -> MeshInstance3D:

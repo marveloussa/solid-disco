@@ -25,7 +25,6 @@ pixel_size = 0.0016
 billboard = 1
 modulate = Color(1, 1, 1, 1)
 outline_modulate = Color(0.2, 0.08, 0.38, 1)
-text = "Skinny Rookie | 0 Days
-Lvl 1"
+text = "LVL 1 | Skinny Rookie | 0 Days"
 font_size = 64
 outline_size = 18

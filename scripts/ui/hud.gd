@@ -1,7 +1,8 @@
 class_name HUD
 extends CanvasLayer
-## Dark HUD: profile (rank, days, level, XP), stamina, pump, status badges, objective,
-## interaction prompt, floating gain popups, the injury vignette and a waypoint marker.
+## Dark HUD: profile (rank, days, level, XP), stamina, pump, cash and fight record, status
+## badges, objective, interaction prompt, floating gain popups, the damage vignette and a
+## waypoint marker. Hosts the CombatHUD and the FightCard menu.
 ## Driven by PlayerStats and GameState signals plus the bound player.
 
 const ACCENT := Color(0.66, 0.45, 1.0)
@@ -42,6 +43,8 @@ var _pump_fill: StyleBoxFlat
 var _vignette_material: ShaderMaterial
 var _popup_slot := 0
 var _in_station := false
+var _in_stance := false
+var _in_bout := false
 
 @onready var root: Control = $Root
 @onready var vignette: ColorRect = %Vignette
@@ -52,6 +55,8 @@ var _in_station := false
 @onready var stamina_bar: ProgressBar = %StaminaBar
 @onready var pump_bar: ProgressBar = %PumpBar
 @onready var pump_label: Label = %PumpLabel
+@onready var cash_label: Label = %CashLabel
+@onready var record_label: Label = %RecordLabel
 @onready var warmup_badge: Control = %WarmupBadge
 @onready var warmup_label: Label = %WarmupLabel
 @onready var injury_badge: Control = %InjuryBadge
@@ -66,6 +71,8 @@ var _in_station := false
 @onready var waypoint_label: Label = %WaypointLabel
 @onready var controls_hint: Label = %ControlsHint
 @onready var popups: Control = %Popups
+@onready var combat_hud: CombatHUD = %CombatHUD
+@onready var fight_card: FightCard = %FightCard
 
 
 func _ready() -> void:
@@ -91,6 +98,10 @@ func _ready() -> void:
 	PlayerStats.pump_changed.connect(_on_pump_changed)
 	PlayerStats.injured.connect(_on_injured)
 	PlayerStats.popup_requested.connect(show_popup)
+	PlayerStats.cash_changed.connect(_on_cash_changed)
+	PlayerStats.fight_record_changed.connect(_on_fight_record_changed)
+	_on_cash_changed(PlayerStats.cash)
+	_on_fight_record_changed(PlayerStats.fight_record)
 	_refresh_profile()
 	_on_xp_changed(PlayerStats.xp, PlayerStats.xp_to_next())
 	_on_stamina_changed(PlayerStats.stamina, PlayerStats.max_stamina)
@@ -102,10 +113,14 @@ func _ready() -> void:
 	fade.tween_property(controls_hint, "modulate:a", 0.0, 1.5)
 
 
-## Hooks the HUD to a player's prompt and station signals.
+## Hooks the HUD to a player's prompt, station and combat signals.
 func bind_player(player: Player) -> void:
 	player.interact_prompt_changed.connect(set_prompt)
 	player.station_changed.connect(_on_station_changed)
+	player.combat.stance_changed.connect(_on_stance_changed)
+	player.combat.damage_taken.connect(_on_damage_taken)
+	player.combat.bout_changed.connect(func(active: bool) -> void: _in_bout = active)
+	combat_hud.bind(player)
 
 
 ## Shows "[key] text" under the crosshair, or hides the prompt when `text` is empty.
@@ -130,6 +145,8 @@ func show_toast(text: String) -> void:
 
 ## Floating text that drifts up beside the crosshair and fades.
 func show_popup(text: String, kind: StringName = &"gain") -> void:
+	if kind == &"level" and _in_bout:
+		return  # the fight result screen lists the level-up itself
 	var style: Array = POPUP_STYLES.get(kind, POPUP_STYLES[&"gain"])
 	var label := Label.new()
 	label.text = text
@@ -258,7 +275,27 @@ func _on_injured(_duration: float) -> void:
 func _on_station_changed(station: WorkoutStation) -> void:
 	_in_station = station != null
 	crosshair.visible = not _in_station
-	controls_hint.visible = not _in_station
+	controls_hint.visible = not _in_station and not _in_stance
+
+
+## The combat HUD shows the fight controls while the hands are up.
+func _on_stance_changed(active: bool) -> void:
+	_in_stance = active
+	controls_hint.visible = not _in_station and not _in_stance
+
+
+## Red vignette on every hit taken; a blocked one barely shows.
+func _on_damage_taken(amount: float, blocked: bool) -> void:
+	var strength := clampf(0.3 + amount / 40.0, 0.3, 0.9)
+	flash_vignette(strength * (0.35 if blocked else 1.0), 0.55)
+
+
+func _on_cash_changed(cash: int) -> void:
+	cash_label.text = PlayerStats.format_cash(cash)
+
+
+func _on_fight_record_changed(record: FightRecord) -> void:
+	record_label.text = record.to_text()
 
 
 ## Minutes and seconds, e.g. "4:07".

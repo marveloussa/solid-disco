@@ -1,7 +1,7 @@
 class_name Player
 extends CharacterBody3D
-## First-person controller: walking, sprinting, jumping, mouse look, interaction, riding and
-## using workout stations.
+## First-person controller: walking, sprinting, jumping, mouse look, interaction, riding,
+## using workout stations and, through its CombatController, fighting.
 ##
 ## The body moves on the physics tick. `Head` is top-level with physics interpolation off: every
 ## rendered frame it follows the body's interpolated position (or a vehicle seat, or a station's
@@ -18,6 +18,12 @@ const DISMOUNT_PROMPT_SPEED := 2.5
 const STATION_LOOK_LIMIT := Vector2(0.9, 0.6)
 ## Standing this still counts as resting.
 const REST_SPEED := 0.6
+## View punch spring: stiffness, and the impulse that makes a punch peak at its given angle.
+const PUNCH_STIFFNESS := 220.0
+const PUNCH_IMPULSE := 40.0
+## How far the eyes sink and roll when knocked out.
+const KNOCKDOWN_DROP := 1.3
+const KNOCKDOWN_ROLL := 0.55
 
 @export_group("Movement")
 @export var walk_speed := 4.2
@@ -53,6 +59,8 @@ var _move_amount := 0.0
 var _sprint_amount := 0.0
 var _camera_roll := 0.0
 var _shake := 0.0
+var _punch := Vector2.ZERO
+var _punch_velocity := Vector2.ZERO
 var _prompt := ""
 var _focus: Interactable = null
 var _view_blend := 1.0
@@ -65,6 +73,7 @@ var _pump_step := -1
 @onready var interact_ray: RayCast3D = $Head/Camera3D/InteractRay
 @onready var model: CharacterModel = $Model
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
+@onready var combat: CombatController = $Combat
 
 
 func _ready() -> void:
@@ -75,6 +84,7 @@ func _ready() -> void:
 	PlayerStats.muscle_changed.connect(_apply_physique)
 	PlayerStats.pump_changed.connect(_on_pump_changed)
 	PlayerStats.injured.connect(_on_injured)
+	combat.bind(self)
 	_apply_physique()
 	head.global_transform = Transform3D(Basis.from_euler(Vector3(_pitch, _yaw, 0.0)), global_position + Vector3.UP * eye_height)
 
@@ -94,6 +104,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event.is_action_pressed(&"interact"):
 		_interact()
+	elif combat.stance:
+		combat.handle_input(event)
 
 
 func _physics_process(delta: float) -> void:
@@ -104,6 +116,7 @@ func _physics_process(delta: float) -> void:
 		model.animate(delta, _stride, 0.0, _pitch, true, vehicle.model.pedal_phase, vehicle.lean)
 	else:
 		_move_on_foot(delta)
+		combat.pose_body(delta, _stride, _move_amount)
 		model.animate(delta, _stride, _move_amount, _pitch, false)
 	_report_activity()
 	_update_focus()
@@ -138,7 +151,10 @@ func _process(delta: float) -> void:
 	else:
 		var look := Basis.from_euler(Vector3(_pitch, _yaw, 0.0))
 		var bob := Vector3.UP * sin(_stride * 2.0) * 0.032 + look.x * cos(_stride) * 0.018
-		view = Transform3D(look, get_global_transform_interpolated().origin + Vector3.UP * eye_height + bob * _move_amount)
+		# A slip tilts the view; a knockout drops it to the canvas.
+		var down := smoothstep(0.0, 1.0, combat.view_drop)
+		roll = combat.view_roll + KNOCKDOWN_ROLL * down
+		view = Transform3D(look, get_global_transform_interpolated().origin + Vector3.UP * (eye_height - KNOCKDOWN_DROP * down) + bob * _move_amount)
 
 	# Ease the view when mounting, dismounting or changing station.
 	if _view_blend < 1.0:
@@ -146,10 +162,13 @@ func _process(delta: float) -> void:
 		view = _view_from.interpolate_with(view, smoothstep(0.0, 1.0, _view_blend))
 	head.global_transform = view
 
-	_camera_roll = lerpf(_camera_roll, roll, 1.0 - exp(-8.0 * delta))
+	_camera_roll = lerpf(_camera_roll, roll, 1.0 - exp(-(20.0 if combat.stance else 8.0) * delta))
 	_shake = move_toward(_shake, 0.0, delta * 1.6)
 	var jolt := _shake * _shake * 0.06
-	camera.rotation = Vector3(randf_range(-jolt, jolt), randf_range(-jolt, jolt), _camera_roll + randf_range(-jolt, jolt))
+	# The punch offset springs back to centre, critically damped.
+	_punch_velocity += (-_punch * PUNCH_STIFFNESS - _punch_velocity * 2.0 * sqrt(PUNCH_STIFFNESS)) * delta
+	_punch += _punch_velocity * delta
+	camera.rotation = Vector3(_punch.x + randf_range(-jolt, jolt), _punch.y + randf_range(-jolt, jolt), _camera_roll + randf_range(-jolt, jolt))
 	camera.fov = lerpf(camera.fov, base_fov + speed_fov_boost * fast, 1.0 - exp(-6.0 * delta))
 	arms.animate(delta, _stride, _move_amount, _sprint_amount, on_foot and not is_on_floor(), torso)
 
@@ -157,6 +176,25 @@ func _process(delta: float) -> void:
 ## Shakes the camera; `amount` 1 is a hard jolt.
 func add_shake(amount: float) -> void:
 	_shake = maxf(_shake, amount)
+
+
+## Knocks the view by about (pitch, yaw) radians in one direction; it springs straight back.
+func add_view_punch(kick: Vector2) -> void:
+	_punch_velocity += kick * PUNCH_IMPULSE
+
+
+## Shoves the fighter along the floor (a push kick landing).
+func apply_impulse(push: Vector3) -> void:
+	velocity.x += push.x
+	velocity.z += push.z
+
+
+## Stands the fighter at `spot`, facing its -Z (ring corners, leaving the cage).
+func place_at(spot: Transform3D) -> void:
+	_begin_view_blend()
+	_yaw = spot.basis.get_euler().y
+	_pitch = 0.0
+	_stand_at(Transform3D(Basis(Vector3.UP, _yaw), spot.origin))
 
 
 ## Called by a vehicle when the player mounts it.
@@ -225,17 +263,21 @@ func _move_on_foot(delta: float) -> void:
 	var input := Vector2.ZERO
 	var wants_sprint := false
 	var wants_jump := false
+	# In the fight stance Shift blocks and Space slips, so there is no sprinting or jumping.
+	var fighting := combat.stance
 	if controls_enabled:
 		input = Input.get_vector(&"move_left", &"move_right", &"move_forward", &"move_back")
-		wants_sprint = Input.is_action_pressed(&"sprint") and input.y < -0.1
-		wants_jump = Input.is_action_just_pressed(&"jump")
+		wants_sprint = not fighting and Input.is_action_pressed(&"sprint") and input.y < -0.1
+		wants_jump = not fighting and Input.is_action_just_pressed(&"jump")
 
 	# Sprinting only costs stamina while actually covering ground.
 	var moving := Vector2(velocity.x, velocity.z).length() > 1.0
 	is_sprinting = wants_sprint and (not moving or PlayerStats.spend_stamina(sprint_stamina_cost * delta))
-	var target := transform.basis * Vector3(input.x, 0.0, input.y) * (sprint_speed if is_sprinting else walk_speed)
+	var target := transform.basis * Vector3(input.x, 0.0, input.y) * (sprint_speed if is_sprinting else walk_speed) * combat.get_move_factor()
 	var acceleration := ground_acceleration if is_on_floor() else air_acceleration
 	var planar := Vector3(velocity.x, 0.0, velocity.z).lerp(target, 1.0 - exp(-acceleration * delta))
+	if combat.is_dashing():
+		planar = combat.dash_velocity
 	velocity.x = planar.x
 	velocity.z = planar.z
 
@@ -279,8 +321,9 @@ func _report_activity() -> void:
 		PlayerStats.training = true
 		PlayerStats.resting = station.is_restful()
 	else:
-		PlayerStats.training = false
-		PlayerStats.resting = vehicle == null and is_on_floor() and Vector2(velocity.x, velocity.z).length() < REST_SPEED
+		# Bag work and bouts count as training; a bout is never rest.
+		PlayerStats.training = combat.is_working()
+		PlayerStats.resting = vehicle == null and not combat.in_bout and is_on_floor() and Vector2(velocity.x, velocity.z).length() < REST_SPEED
 
 
 func _stand_at(spot: Transform3D) -> void:
@@ -297,7 +340,7 @@ func _begin_view_blend() -> void:
 
 func _apply_physique() -> void:
 	var pump := PlayerStats.pump_level / PlayerStats.PUMP_MAX
-	arms.set_physique(PlayerStats.get_muscle_visual(&"arms"), pump)
+	arms.set_physique(PlayerStats.get_muscle_visual(&"arms"), pump, PlayerStats.get_muscle_visual(&"legs"))
 	model.set_physique(PlayerStats.get_muscle_visual(&"arms"), PlayerStats.get_muscle_visual(&"torso"), PlayerStats.get_muscle_visual(&"legs"), pump)
 
 

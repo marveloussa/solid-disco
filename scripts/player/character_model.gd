@@ -3,6 +3,7 @@ extends Node3D
 ## Stylized low-poly humanoid built from primitives on a simple joint hierarchy.
 ## The player uses it for the mirror reflection and shadow; NPCs can reuse it on the world layer.
 ## `set_physique` thickens arms, torso and legs separately. Faces local -Z.
+## Fighters drive `fight_pose` from a FightAnimator for the guard, strikes and knockdowns.
 
 ## Workout poses blended over the walk cycle. `pose_progress` drives them.
 enum Pose { NONE, BENCH, SQUAT, DEADLIFT, CURL, PUSHUP, STRETCH }
@@ -29,6 +30,10 @@ var pose := Pose.NONE
 var pose_progress := Vector2.ONE
 ## Where a lying or planking pose puts the body, relative to the parent.
 var pose_offset := Vector3.ZERO
+## Fight layer: joint targets from a FightAnimator, blended over the walk cycle and the workout
+## poses by `fight_blend` (0 to 1).
+var fight_pose: FightPose = null
+var fight_blend := 0.0
 
 var _arms_girth := 0.0
 var _torso_girth := 0.0
@@ -118,6 +123,8 @@ func animate(delta: float, stride_phase: float, move_amount: float, look_pitch: 
 
 	if _pose_blend > 0.0:
 		_blend_pose(smoothstep(0.0, 1.0, _pose_blend))
+	if fight_pose != null and fight_blend > 0.0:
+		_blend_fight(smoothstep(0.0, 1.0, fight_blend))
 
 	for i in 2:
 		_legs[i].rotation.x = _leg[i]
@@ -204,6 +211,21 @@ func _blend_pose(blend: float) -> void:
 	_head_x = lerpf(_head_x, head, blend)
 	_root_pos = _root_pos.lerp(root_pos, blend)
 	_root_rot = _root_rot.lerp(root_rot, blend)
+
+
+## Overrides the targets with the fight layer, weighted by `blend`.
+func _blend_fight(blend: float) -> void:
+	for i in 2:
+		var side := -1.0 if i == 0 else 1.0
+		_leg[i] = lerpf(_leg[i], fight_pose.leg[i], blend)
+		_knee[i] = lerpf(_knee[i], fight_pose.knee[i], blend)
+		_arm_x[i] = lerpf(_arm_x[i], fight_pose.arm_x[i], blend)
+		_arm_z[i] = lerpf(_arm_z[i], side * fight_pose.arm_z[i], blend)
+		_elbow[i] = lerpf(_elbow[i], fight_pose.elbow[i], blend)
+	_torso_rot = _torso_rot.lerp(fight_pose.torso, blend)
+	_head_x = lerpf(_head_x, fight_pose.head, blend)
+	_root_pos = _root_pos.lerp(fight_pose.root_pos, blend)
+	_root_rot = _root_rot.lerp(fight_pose.root_rot, blend)
 
 
 func _build() -> void:

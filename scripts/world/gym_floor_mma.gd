@@ -1,5 +1,6 @@
 extends Node3D
 ## Storey 2: MMA and boxing hall with a raised octagon, heavy bags and spectator seating.
+## The bags are PunchingBag scenes; the RingManager at the cage runs the fights.
 ## Uses gym-local x/z; y = 0 is this storey's floor.
 
 const CEILING := 4.7
@@ -9,11 +10,13 @@ const CAGE_HEIGHT := 0.72
 const FENCE_HEIGHT := 1.8
 const RED := Color(0.9, 0.16, 0.16)
 const BLUE := Color(0.16, 0.42, 0.95)
+const PUNCHING_BAG := preload("res://scenes/combat/punching_bag.tscn")
 
 
 func _ready() -> void:
 	_build_floor()
 	_build_octagon()
+	_build_ring()
 	_build_bags()
 	_build_seating()
 	_build_dressing()
@@ -70,13 +73,33 @@ func _build_octagon() -> void:
 	Build.stairs(cage, Vector3(0.0, 0.0, apothem + 1.05), 0.0, 3, CAGE_HEIGHT / 3.0, 0.35, 1.8, Build.mat(Color(0.3, 0.31, 0.36), 0.8))
 
 
+## The RingManager adds the gate, the fight card terminal and the fight zone to the cage.
+func _build_ring() -> void:
+	var apothem := CAGE_RADIUS * cos(PI / 8.0)
+	var ring := RingManager.new()
+	ring.name = "RingManager"
+	ring.position = CAGE_CENTRE
+	ring.platform_height = CAGE_HEIGHT
+	ring.fence_height = FENCE_HEIGHT
+	ring.arena_radius = apothem - 0.3
+	ring.gate_distance = apothem - 0.14
+	ring.side_length = 2.0 * CAGE_RADIUS * sin(PI / 8.0)
+	ring.pad_color = RED
+	add_child(ring)
+
+
 func _build_bags() -> void:
 	var rail := GymProps.frame()
 	Build.tube(self, Vector3(-12.6, CEILING - 0.35, -2.5), Vector3(-12.6, CEILING - 0.35, -20.5), 0.07, rail)
 	var colors: Array[Color] = [RED, Color(0.1, 0.1, 0.12), BLUE, Color(0.95, 0.75, 0.1), RED]
 	for i in 5:
 		var z := -4.4 - i * 3.6
-		GymProps.heavy_bag(self, Vector3(-12.6, 0.0, z), colors[i], CEILING - 0.35)
+		var bag: PunchingBag = PUNCHING_BAG.instantiate()
+		bag.name = "HeavyBag%d" % (i + 1)
+		bag.color = colors[i]
+		bag.mount_height = CEILING - 0.35
+		bag.position = Vector3(-12.6, 0.0, z)
+		add_child(bag)
 		Build.tube(self, Vector3(-14.6, CEILING - 0.35, z + 1.8), Vector3(-12.6, CEILING - 0.35, z + 1.8), 0.05, rail)
 	# Glove shelf.
 	Build.box(self, Vector3(0.4, 0.06, 3.0), Vector3(-14.35, 1.3, -22.6), Build.mat(GymProps.WOOD, 0.7))
@@ -127,4 +150,4 @@ func _build_lighting() -> void:
 		Build.tube(self, a, b, 0.06, truss)
 		Build.tube(self, a, a + Vector3(0.0, 0.5, 0.0), 0.04, truss)
 		Build.box(self, Vector3(0.5, 0.12, 0.5), (a + b) * 0.5 - Vector3(0.0, 0.1, 0.0), Build.glow(Color(1.0, 0.97, 0.9), 3.0))
-	Build.spot_down(self, centre, Color(1.0, 0.97, 0.92), 7.0, 8.0, 52.0)
+	Build.spot_down(self, centre, Color(1.0, 0.97, 0.92), 4.0, 8.0, 52.0)
