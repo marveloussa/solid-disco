@@ -2,11 +2,12 @@
 
 First-person stylized Gym & MMA progression game for **Godot 4.4+** (Forward+ renderer; tested on 4.4.1 and 4.7.2).
 
-**All four steps are in**, and the game is complete: the intro street and a rideable bicycle, a three-storey
+**All five steps are in**, and the game is complete: the intro street and a rideable bicycle, a three-storey
 gym, first-floor training with stats, levelling, visible muscle growth, a pump multiplier and injuries,
-second-floor MMA with first-person striking, heavy bags, a five-fighter ladder and an endless league, and a
-living gym: regulars who react to your reputation, a supplement bar on the third floor, synthesized sound
-and music, saving, a pause menu and particle effects.
+second-floor MMA with first-person striking, heavy bags, a five-fighter ladder and an endless league, a
+living gym (regulars who react to your reputation, a supplement bar on the third floor, synthesized sound
+and music, saving, a pause menu and particle effects), and fast, technical fights: head and body targeting,
+two guards, feints, intercept counters, a chin gauge with knockdowns, the clinch and five opponent styles.
 Everything is built from Godot's primitive meshes and `StandardMaterial3D`, and every sound is synthesized
 in code, so there are no imported assets of any kind: open `project.godot` in the editor and press **F5**.
 
@@ -45,11 +46,15 @@ Walk up to a heavy bag or into the cage and the hands come up with the gloves on
 
 | Input | Action |
 | --- | --- |
-| `LMB` | Left jab. A second `LMB` straight after a jab is a left hook |
-| `RMB` | Right cross. A second `RMB` straight after a cross is a right overhand |
-| `F` / middle mouse | Front push kick; a knee to the body when chest to chest. Pushes back and drains stamina |
-| `Shift`, or `LMB` + `RMB` held together | Tight guard: 80% less damage, costs stamina |
+| `LMB` | Left jab to the head. A second `LMB` straight after a jab is a left hook |
+| `RMB` | Right cross to the head. A second `RMB` straight after a cross is a right overhand |
+| `Ctrl` (or `C`) + `LMB` / `RMB` | Body shots: liver hook and body cross. Less damage, but they drain the opponent's stamina |
+| `F` / middle mouse | Front push kick to the body; a knee when chest to chest. Pushes back and drains stamina |
+| `Shift`, or `LMB` + `RMB` held together | High guard: stops head shots for 80% less damage, costs stamina. The body is open |
+| `Ctrl` + `Shift` | Body guard: stops body shots the same way. The head is open |
+| Tap `Shift` within 0.15 s of starting a punch | Feint: the punch is pulled back and its stamina refunded |
 | `A` / `D` / `S` + `Space` | Slip left, right or back (`Space` alone slips back) |
+| `Space` / `F` in a clinch | Break the grip: mash, or time one press with the knee coming up |
 | `E` at the terminal | Fight Card / Enter Ring |
 
 | Combo | Buttons | Effect |
@@ -58,9 +63,18 @@ Walk up to a heavy bag or into the cage and the hands come up with the gloves on
 | Guard Breaker | `LMB` `LMB` `RMB` | Jab, hook, uppercut: shatters a raised guard and staggers |
 | KO Finisher | `RMB` `LMB` `RMB` | Cross, jab, overhand for x2 with heavy knockback and a stagger |
 
-Presses chain when they are less than 0.9 s apart; a whiff or taking a clean hit breaks the chain.
-**Perfect counter**: slip within 0.22 s of a strike landing and time slows for a quarter of a second; the
-next strike you throw does x2 damage.
+Presses chain when they are less than 0.9 s apart; a whiff or taking a clean hit breaks the chain. Body
+shots chain like any other press, but only head shots complete the named combos.
+
+| Technique | How | Reward |
+| --- | --- | --- |
+| Intercept counter | Land a clean punch while the opponent is still winding up | x2.5 damage, his attack is cancelled, a heavy jolt to his chin |
+| Perfect counter | Slip within 0.22 s of a strike landing; time slows for a quarter of a second | The next strike does x2 and staggers |
+| Level change | A head shot within 1.2 s of a clean body shot | x1.2 damage and x1.6 on his chin gauge |
+| Feint | Tap `Shift` as the punch starts | An opponent who bites is stuck with his guard or slip for 0.55 s |
+| Punish | Hit a staggered or rocked opponent | x1.25 damage |
+
+Bonuses never stack: the biggest one that applies is the one that counts.
 
 ### Supplement bar (3F)
 
@@ -99,32 +113,94 @@ vignette and makes the forearms steam.
 
 ## How fighting works
 
+Bouts are short and decided by clean, timed strikes rather than by trading into a health bar. Health pools
+are small, every strike is aimed at a level, and a bout can end three ways: the health bar, two knockdowns,
+or one clean counter on a fighter with nothing left in the tank.
+
 - **Stats carry upstairs.** `Strength` and `MuscleArms` scale punch damage and how fast a guard breaks;
   `MuscleLegs` scales kicks, slip speed and footwork; level, `MuscleTorso` and `MaxStamina` set the health
-  bar for a bout (100 for a rookie).
+  bar for a bout (100 for a rookie); level and `MuscleTorso` add a little chin (60 for a rookie). Timing
+  windows, bonuses and composure are flat, so skill beats stats.
+- **Head and body.** Every strike goes to one level and every guard covers one level. The HUD names the
+  opponent's guard (`HIGH GUARD`, `BODY GUARD`, `NO GUARD`): hit the other one. Body shots do about half
+  the damage of head shots but take 12 to 24 stamina each, wind the opponent (no stamina regeneration for
+  2.5 s) and knock the rest of his combination out of him.
+- **Guards.** Your guard stops 80% of a strike at its level and costs stamina with every blocked blow; with
+  none left it breaks and you are stunned for 0.6 s. An opponent's guard is a meter: blocked strikes chip
+  it, an empty one breaks (60% of the blow goes through and he staggers for 0.8 s), and it comes back whole
+  and unbreakable for 2 s, so nobody is stun-locked.
 - **Stamina gates everything.** Every strike, slip and second behind the guard costs stamina. Run dry and
   punches come out at 60% speed and 55% power, and the guard drops until a quarter of the bar is back.
-- **Strained** fighters (Step 2's injury) hit 40% weaker and 28% slower until the strain heals; the combat
-  HUD says so.
+  Under 20% you are one mistake from a knockout: get hit clean while your own punch is on its way and the
+  bout is over. The same goes for opponents: empty the tank downstairs, then beat them to the punch.
+- **Anti-spam.** Three strikes in a row are free. From the fourth without a pause they are arm punches:
+  x1.45 slower, double the stamina, 65% of the damage, no combos, no intercepts, and every opponent slips
+  them and counters. A 0.4 s breath, a step of half a metre, a slip, the guard or a feint resets the count.
+  The HUD warns `SLOPPY`.
+- **Chin gauge and knockdowns.** Under each health bar is a thin gauge with two dots. Clean hits fill it
+  (jab 5, hook 11, cross 13, uppercut 18, overhand 20; intercepts, counters and level changes far more) and
+  it drains again after 1.6 s without one, so it takes hits in bunches. A full gauge is `ROCKED!` for 1.5 s:
+  no guard, no punches, and the view swims. A heavy clean blow on a rocked fighter, or enough light ones,
+  is a knockdown; the fighter is up again in 2.3 s with the gauge reset. The second knockdown stops the
+  bout, whatever is left on the health bar.
+- **Opponents telegraph.** A cue pops over the head and the glove glows for the whole wind-up, never shorter
+  than 0.28 s: `!` a light head strike, `!!` a heavy one (hooks and overhands also swoosh), `LOW` a body
+  shot (he dips first), `GRAB` a clinch attempt, `!!!` an explosive burst (a tense crouch and a sharp
+  exhale). A feint shows the cue with **no glow on the glove**. Block the right level, slip it, step out, or
+  hit first.
+- **Clinch.** A grab that closes holds you chest to chest for up to three knees to the body that cannot be
+  blocked. Mash `Space` or `F` to fill the break bar, or press once as a knee comes up (the prompt flashes)
+  for half the bar. Breaking out shoves him off, staggered. Slipping the grab makes him stumble past.
 - **Heavy bags** take any strike and combo, swing as damped pendulums and pay a little XP, arm or leg
   muscle and max stamina per clean hit. No sign-up needed: just walk up.
-- **Opponents telegraph.** Every attack pulls the arm or knee back, pops a `!` over the head (yellow for a
-  light strike, red `!!` for a heavy one) and makes the glove glow for the whole wind-up, never shorter
-  than 0.28 s. Block it, slip it, or step out of range. A whiffed strike leaves a long recovery.
-- **The ladder**: Skinny Sam (Lvl 1), Cardio Carl (Lvl 3), Brawler Boris (Lvl 6), Counter-King Viktor
-  (Lvl 10), The Iron Champ (Lvl 15, Gym Boss). Each body matches the tier and each fights differently:
-  Sam jabs and backs off, Carl bounces and throws jabs in bunches, Boris walks forward behind heavy hooks
-  with slow recoveries, Viktor sits behind a high guard and counters a second blocked punch, the Champ
-  feints and mixes everything.
+- **The ladder** is five styles, not five health bars (Step 4's pools were 150, 260, 430, 560 and 820):
+
+  | Tier | Fighter | Style | Health | How he fights | How to beat him |
+  | --- | --- | --- | --- | --- | --- |
+  | 1 | Skinny Sam (Lvl 1) | The Noob | 150 | Wide looping hooks with long wind-ups, hands at his waist after every swing, awkward pauses, no gas tank | Make him miss and hit him, intercept the wind-up, go under his high guard |
+  | 2 | Cardio Carl (Lvl 3) | Pressure Fighter | 220 | Cuts off the cage and throws three and four punch flurries that eat the stamina of a static guard | Step off the line, beat him to the punch, rip the body |
+  | 3 | Counter-King Viktor (Lvl 6) | Sniper | 300 | Holds the end of a long reach, feints six leads in ten, slips and threads a straight through | Watch the glove, feint him back, do not whiff |
+  | 4 | Brawler Boris (Lvl 10) | Dirty Boxer | 440 | Walks inside, rips the body to empty your tank, grabs the clinch for knees | Guard low, hit him on the way in, break the grip |
+  | 5 | The Iron Champ (Lvl 15, Gym Boss) | The Pro | 520 | Calm for 4 to 8 s, then head-body-head in a blink, and he reads your habits | Intercept the crouch, change levels, never throw the same thing three times |
+
+- **Adaptive opponents** (the Champ and every league challenger) remember your last five combinations and
+  slips. Throw the same combination twice and the third is `READ!`: slipped, and answered with a counter that
+  floors you if it lands clean. Slip the same way twice and the third time the punch is held until your slip
+  has run out. They also cover the level you keep going to, show more feints to a player who slips
+  everything and go to the body of one who blocks everything.
 - **Endless Championship League** opens when the Champ falls: a seeded challenger for every level from
-  16 up, with a random name, build, colours and one of four styles, and health, damage and purse that
-  keep growing.
-- **Winning** pays the purse (plus win-streak, flawless and perfect-counter bonuses), large XP and three
-  days of tenure, and unlocks the next fighter. Beating someone again pays half. **Losing** pays 15% of the
-  XP and one day, and you walk out of the cage free to train and rematch.
-- **Feel**: 30 to 60 ms of hit-stop on heavy, combo and counter hits, a directional camera punch, shake, a
-  red vignette when hit, floating callouts (`COUNTER x2!`, `GUARD BREAK!`, `KNOCKOUT!`), staggers and a
-  slow-motion knockdown.
+  16 up, with a random name, build and colours. Each is an adaptive Pro-tier hybrid that switches between
+  two styles every 5 to 8 s (Sniper-Pressure, Dirty-Pro, Pressure-Dirty, Pro-Sniper). Health only creeps up,
+  by 10 a level from 530; what climbs is the fight IQ: shorter wind-ups (never under 0.28 s) and
+  recoveries, better reads of levels and feints and more counters, at their sharpest from level 31.
+- **Winning** pays the purse plus bonuses (win streak 10% a win up to 50%, flawless 25%, 5% for every
+  perfect counter and every intercept counter, 10% for every knockdown), large XP and three days of tenure,
+  and unlocks the next fighter. Beating someone again pays half. **Losing** pays 15% of the XP and one day,
+  and you walk out of the cage free to train and rematch.
+- **Feel**: 30 to 80 ms of hit-stop on heavy, combo and counter hits; a crunch and a rattle of the view
+  along the line of the punch on an intercept; the view dips for body shots, swims when rocked, drops to
+  the canvas on a knockdown and is dragged onto the opponent in a clinch; a red vignette when hit, floating
+  callouts (`INTERCEPT COUNTER!`, `LEVEL CHANGE!`, `ROCKED!`, `KNOCKDOWN!`) and a slow-motion finish.
+
+**Bout length.** Tuned with a scripted player driving the real scene, 20 bouts per cell, with a build that
+matches each opponent's tier. "Novice" reacts in 0.34 to 0.5 s, picks the right guard 60% of the time and
+never feints or intercepts; "average" reacts in 0.24 to 0.36 s and uses every tool some of the time;
+"skilled" reacts in 0.17 to 0.25 s. Median bout, with wins out of 20 in brackets:
+
+| Opponent | Novice | Average | Skilled |
+| --- | --- | --- | --- |
+| Skinny Sam | 21 s (20) | 17 s (20) | 19 s (20) |
+| Cardio Carl | 40 s (9) | 42 s (19) | 20 s (19) |
+| Counter-King Viktor | 59 s (1) | 60 s (19) | 35 s (20) |
+| Brawler Boris | 32 s (2) | 44 s (18) | 27 s (20) |
+| The Iron Champ | 37 s (0) | 58 s (6) | 45 s (18) |
+| League, levels 16, 20 and 28 | 25 to 35 s (0) | 49 to 60 s (8 to 15) | 35 s (16 to 19) |
+
+Sam is a warm-up. From Carl up, a player who uses the tools has bouts of 40 to 60 s (the longest ran to
+about 100 s) and an expert finishes sooner. A player who only walks forward and punches stops winning at
+tier 3 until the technique or the stats catch up: one tier of extra training lifts the novice from one win
+in twenty over Viktor to about one in three, two tiers to nearly every bout. Button mashing is knocked out
+by everyone within a few seconds.
 
 ## The living gym
 
@@ -148,7 +224,7 @@ vignette and makes the forearms steam.
 
 ## Sound and music
 
-There are no audio files. `AudioManager` synthesizes nineteen effects and a four-bar beat on a worker thread
+There are no audio files. `AudioManager` synthesizes twenty-nine effects and a four-bar beat on a worker thread
 at start-up (about half a second) from sine and triangle pitch drops, filtered noise bursts and ringing
 partials, and plays them through two `AudioStreamGenerator` streams.
 
@@ -157,7 +233,10 @@ partials, and plays them through two `AudioStreamGenerator` streams.
   gulp at the bar, a chime on level-up.
 - **Fights:** low thuds for hits (deeper and saturated for heavy ones), a sharp snap on counters and guard
   breaks, a muffled impact on blocks, a whoosh on misses and slips, a bass drop as slow motion starts,
-  countdown beeps, the ring bell at "FIGHT!" and three strokes at the end, crowd roars.
+  countdown beeps, the ring bell at "FIGHT!" and three strokes at the end, crowd roars. Step 5 adds a crunch
+  for intercept counters, a deep thump for body shots, a ringing tone when a fighter is rocked, a body
+  hitting the canvas, and the tells: a swoosh as a hook or overhand loads, a dip for a body shot, a lunge
+  and a grab for the clinch, a sharp exhale before a burst and a soft flick for a feint.
 - **Speakers:** a 128 BPM phonk-style loop (808 kick and sliding sub-bass, claps, hats, a pulsing synth, a
   quiet cowbell line, all low-passed) plays softly inside the gym, leaks faintly through the walls and
   fades out on the street. `M` or the pause menu mutes it.
@@ -419,6 +498,35 @@ like the Step 3 menus. `PauseMenu` runs with `process_mode = Always`.
 Particle effects are created in code and need no nodes of their own: `CombatFx.burst()` adds a one-shot
 `GPUParticles3D` to the scene and frees it; `PlayerArms` owns two `GPUParticles3D` for the forearm aura.
 
+### Added in Step 5
+
+Input Map: `body_mod` (Ctrl, C) and `clinch_break` (Space, F).
+
+No scene file changes. Step 5 replaces the Step 3 fight scripts in place (`combat_controller.gd`,
+`enemy_fighter.gd`, `ring_manager.gd`, `combat_hud.gd` and the data classes around them) and adds four
+scripts that are plain `RefCounted` classes created in code:
+
+```
+Player → Combat (CombatController)         owns a ChinGauge; new signals strike_started, feinted, dodged,
+                                           chin_changed, knocked_down, clinch_changed, callout
+
+EnemyFighter (CharacterBody3D)             the body: states, tells, guards, chin, knockdowns
+├── ChinGauge                              scripts/combat/chin_gauge.gd (the player has one too)
+└── EnemyAI                                scripts/combat/enemy_ai.gd, the brain
+    ├── FightStyle                         scripts/combat/fight_style.gd, from FighterProfile.style / alt_style
+    └── PatternMemory                      scripts/combat/pattern_memory.gd, used by adaptive fighters
+
+CombatHUD (Control)                        scripts/ui/combat_hud.gd, still built in _ready()
+├── OpponentPanel                          adds the style, a chin gauge, two knockdown dots, the guard's level
+├── Clock                                  new: bout clock
+├── PlayerPanel                            adds a chin gauge, two knockdown dots, ROCKED / LOW STAMINA / SLOPPY
+├── Callout                                new: "ROCKED!", "FEINTED!", "BODY SHOT!", "COUNTERED!", "KNOCKDOWN!"
+└── Clinch                                 new: "[SPACE] / [F]" prompt and the break bar
+```
+
+`FighterProfile` now carries a `style` (and an `alt_style` for league hybrids), `chin`, `composure` and
+`adaptive`; `PlayerStats` gains `get_chin()`. The save format is unchanged, so Step 4 saves load as they are.
+
 ## Scripts
 
 | Path | Role |
@@ -427,7 +535,7 @@ Particle effects are created in code and need no nodes of their own: `CombatFx.b
 | `scripts/autoload/game_state.gd` | Autoload `GameState`: objective and toast messages |
 | `scripts/autoload/audio_manager.gd` | Autoload `AudioManager`: mixes sound effects and streams the gym beat through `AudioStreamGenerator` |
 | `scripts/autoload/save_manager.gd` | Autoload `SaveManager`: JSON save and load, settings, career reset |
-| `scripts/audio/synth.gd`, `sound_bank.gd`, `gym_beat.gd` | Oscillator and noise building blocks; the nineteen effects; the speaker loop |
+| `scripts/audio/synth.gd`, `sound_bank.gd`, `gym_beat.gd` | Oscillator and noise building blocks; the twenty-nine effects; the speaker loop |
 | `scripts/npc/gym_npc.gd` | `GymNpc`: a regular with a name tag, speech bubble and one looping activity |
 | `scripts/npc/gym_crowd.gd`, `reputation.gd` | `GymCrowd`: spawner, remarks, stepping aside, the crowd at the cage. `Reputation`: tier and lines |
 | `scripts/world/supplement_bar.gd`, `scripts/core/supplements.gd` | The bartender and shop prompt; the four consumables |
@@ -444,16 +552,20 @@ Particle effects are created in code and need no nodes of their own: `CombatFx.b
 | `scripts/workouts/treadmill_station.gd` | Treadmill with moving belt |
 | `scripts/workouts/warmup_station.gd` | Stretch and push-up rhythm game |
 | `scripts/ui/hud.gd`, `workout_overlay.gd`, `gauge_bar.gd` | HUD, contextual station gauges, the gauge control |
-| `scripts/ui/combat_hud.gd`, `fight_card.gd`, `ui_kit.gd` | Fight overlay and result screen, fight selection menu, shared flat dark UI pieces |
-| `scripts/combat/combat_controller.gd` | `CombatController`: stance, strikes, combos, block, slips, perfect counter, the player's health in a bout |
-| `scripts/combat/strike.gd`, `combo_tracker.gd` | `Strike`: one blow and its outcome. `ComboTracker`: timed chain detection |
+| `scripts/ui/combat_hud.gd`, `fight_card.gd`, `ui_kit.gd` | Fight overlay (health, chin gauges, knockdown dots, guard, clock, callouts, clinch bar) and result screen, fight selection menu, shared flat dark UI pieces |
+| `scripts/combat/combat_controller.gd` | `CombatController`: stance, head and body strikes, combos, feints, both guards, slips, perfect counter, anti-spam, the player's health, chin gauge, knockdowns and clinch escape |
+| `scripts/combat/strike.gd`, `combo_tracker.gd` | `Strike`: one blow, its level and its outcome. `ComboTracker`: timed chain detection for head and body presses |
+| `scripts/combat/chin_gauge.gd` | `ChinGauge`: composure shared by both fighters: stagger, rocked spell, knockdown |
 | `scripts/combat/combat_target.gd`, `combat_zone.gd` | `CombatTarget`: hurtbox component. `CombatZone`: where the hands come up |
 | `scripts/combat/time_fx.gd`, `combat_popup.gd` | Hit-stop and slow motion; floating 3D callouts |
-| `scripts/combat/fight_animator.gd`, `fight_pose.gd`, `fight_gear.gd` | Guard, wind-up, strike, block, stagger and knockdown poses for `CharacterModel`; gloves |
+| `scripts/combat/fight_animator.gd`, `fight_pose.gd`, `fight_gear.gd` | Guard (high and low), wind-up, strike, slip, crouch, reach, clinch, stagger, rocked and knockdown poses for `CharacterModel`; gloves |
 | `scripts/combat/punching_bag.gd` | `PunchingBag`: swinging heavy bag that pays XP and conditioning |
-| `scripts/combat/enemy_fighter.gd` | `EnemyFighter`: opponent body, hurtbox, tag and telegraphed AI |
-| `scripts/combat/fighter_profile.gd`, `fighter_roster.gd` | Opponent data; the five-fighter ladder and the Endless League generator |
-| `scripts/combat/ring_manager.gd`, `fight_card_terminal.gd` | `RingManager`: gate, countdown, bout flow, payout. The kiosk beside the cage |
+| `scripts/combat/enemy_fighter.gd` | `EnemyFighter`: opponent body and action state machine: wind-ups and tells, both guards, slips, the clinch, chin gauge and knockdowns |
+| `scripts/combat/enemy_ai.gd` | `EnemyAI`: the fight brain: footwork, leads, feints, bursts, grabs, and its answers to the player's strikes, feints and slips |
+| `scripts/combat/fight_style.gd` | `FightStyle`: the five archetypes as tempo, combination and fight-IQ numbers; `sharpen()` for the league |
+| `scripts/combat/pattern_memory.gd` | `PatternMemory`: the player's recent combinations and slips, for adaptive opponents |
+| `scripts/combat/fighter_profile.gd`, `fighter_roster.gd` | Opponent data; the five-fighter ladder and the Endless League's hybrid generator |
+| `scripts/combat/ring_manager.gd`, `fight_card_terminal.gd` | `RingManager`: gate, countdown, bout clock, how the bout ended, payout. The kiosk beside the cage |
 | `scripts/combat/fight_record.gd` | `FightRecord`: wins, losses, streak |
 | `scripts/vehicles/bicycle.gd`, `bicycle_model.gd` | `Bicycle` arcade physics and its `BicycleModel` |
 | `scripts/world/mirror.gd` | `Mirror`: planar reflection through a SubViewport, rank tag |
@@ -474,6 +586,7 @@ Read these directly from the `PlayerStats` autoload:
 | `level`, `xp`, `rank_title`, `gym_tenure` | Progress; `get_profile_title()` gives "Gym Regular \| 4 Days", `get_overhead_tag()` gives "LVL 3 \| Gym Regular \| 4 Days" |
 | `fight_record` | A `FightRecord`: `wins`, `losses`, `win_streak`, `best_streak`, `total()`, `to_text()` gives "3 W - 1 L" |
 | `ladder_progress`, `league_wins` | Ladder fighters beaten (0 to 5) and Endless League challengers beaten |
+| `get_max_health()`, `get_chin()` | Health bar and chin gauge for a bout: 100 and 60 for a rookie, growing with level and `muscle_torso` |
 | `strength` | Roughly the safe bench press in kg; `get_effective_strength()` applies strain, fatigue and pre-workout |
 | `stamina`, `max_stamina`, `is_exhausted` | `spend_stamina(amount)` returns false when exhausted |
 | `muscle_arms`, `muscle_torso`, `muscle_legs` | 0 to 100; `get_muscle_visual(group)` gives 0 to 1 for models |
@@ -495,8 +608,9 @@ Extension points:
   `AudioManager.play(&"name")`.
 - **A new station**: extend `WorkoutStation`, override `_begin`, `_tick`, `_view` and `handle_input`, and
   place it with `GymProps.workout()`.
-- **More opponents**: add a `FighterProfile` to `FighterRoster.ladder()` or a style to
-  `league_challenger()`.
+- **More opponents**: add a `FighterProfile` to `FighterRoster.ladder()`, an archetype to `FightStyle.make()`
+  or a pair of styles to the hybrids in `league_challenger()`. A profile may override single numbers of its
+  style, as Carl does.
 
 ## Final checklist
 
@@ -510,6 +624,13 @@ Checked on Godot 4.4.1 and 4.7.2 by scripted play of the real scene:
   regulars step aside and gather at the cage from level 10 and cheer; the bar sells and applies all four
   consumables; nineteen synthesized sounds and the gym beat; save, load, autosave and career reset; pause
   menu with sensitivity and audio settings; sweat, sparks, shards, confetti and the arm aura.
+- [x] **Step 5** (Godot 4.4.1, headless, scripted) Head and body strikes against the high and the body
+  guard, both ways; guard breaks; feints that are bitten on and seen through; intercept and perfect
+  counters; the anti-spam limit; the chin gauge, rocked spells, knockdowns and the two-knockdown stoppage
+  for both fighters; the knockout of a gassed fighter; the clinch, its knees and all three ways out; every
+  tell and the 0.28 s wind-up floor across all styles; adaptive reads of repeated combinations and slips;
+  hybrid style switches; HUD gauges, dots, callouts and result lines; purse bonuses; ten new sounds; a
+  Step 4 save loading unchanged.
 - [x] **Together** Stats trained downstairs decide fights upstairs; fight cash buys buffs on the third
   floor that speed up training and fighting; everything survives a restart.
 - [x] **No stuck input** Leaving a station, the ring, the fight card, the shop and the pause menu each hand
