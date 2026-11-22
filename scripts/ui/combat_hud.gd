@@ -319,7 +319,7 @@ func _refresh_status() -> void:
 		text = "GASSED   no guard, slow punches, one counter from a KO"
 		color = UiKit.GOLD
 	elif _combat != null and _combat.in_bout and _combat.is_spent():
-		text = "LOW STAMINA   one clean counter-hit ends it"
+		text = "LOW STAMINA   a clean counter-hit puts you down"
 		color = UiKit.GOLD
 	elif _combat != null and _combat.is_sloppy():
 		text = "SLOPPY   mashing: slow punches, x2 stamina, easy to slip"
