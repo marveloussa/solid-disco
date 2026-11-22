@@ -41,6 +41,8 @@ var damage := 0.0
 var bonus := 1.0
 ## Taken off a blocking opponent's guard meter; on the player, extra stamina a block costs.
 var guard_damage := 0.0
+## How far the blow carries from the attacker, centre to centre; 0 when it does not matter.
+var reach := 0.0
 ## Composure a clean hit takes off the target's chin gauge.
 var stagger := 0.0
 ## Speed, in m/s, the target is shoved along `direction`.
